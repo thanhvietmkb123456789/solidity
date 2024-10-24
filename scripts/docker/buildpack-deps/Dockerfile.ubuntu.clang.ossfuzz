@@ -22,7 +22,7 @@
 # (c) 2016-2021 solidity contributors.
 #------------------------------------------------------------------------------
 FROM gcr.io/oss-fuzz-base/base-clang:latest as base
-LABEL version="7"
+LABEL version="8"
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -60,7 +60,7 @@ RUN apt-get update; \
 		pylint \
 		requests \
 		tabulate \
-		z3-solver;
+                z3-solver;
 
 # Install cmake 3.21.2 (minimum requirement is cmake 3.10)
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.2/cmake-3.21.2-Linux-x86_64.sh; \
@@ -88,14 +88,14 @@ RUN set -ex; \
 
 # Z3
 RUN set -ex; \
-    git clone --depth 1 -b z3-4.12.1 https://github.com/Z3Prover/z3.git \
+    git clone --depth 1 -b z3-4.13.3 https://github.com/Z3Prover/z3.git \
     /usr/src/z3; \
     cd /usr/src/z3; \
     mkdir build; \
     cd build; \
     LDFLAGS=$CXXFLAGS cmake -DZ3_BUILD_LIBZ3_SHARED=OFF -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_BUILD_TYPE=Release ..; \
-    make libz3 -j; \
+    make z3 -j; \
     make install; \
     rm -rf /usr/src/z3
 
@@ -111,14 +111,14 @@ RUN set -ex; \
 
 # CVC5
 RUN set -ex; \
-	cvc5_version="1.1.2"; \
-	wget "https://github.com/cvc5/cvc5/releases/download/cvc5-${cvc5_version}/cvc5-Linux-static.zip" -O /opt/cvc5.zip; \
-	test "$(sha256sum /opt/cvc5.zip)" = "cf291aef67da8eaa8d425a51f67f3f72f36db8b1040655dc799b64e3d69e6086  /opt/cvc5.zip"; \
-	unzip /opt/cvc5.zip -x "cvc5-Linux-static/lib/cmake/*" -d /opt; \
-	mv /opt/cvc5-Linux-static/bin/* /usr/bin; \
-	mv /opt/cvc5-Linux-static/include/* /usr/include; \
-	mv /opt/cvc5-Linux-static/lib/* /usr/lib; \
-	rm -rf /opt/cvc5-Linux-static /opt/cvc5.zip;
+	cvc5_version="1.2.0"; \
+	wget "https://github.com/cvc5/cvc5/releases/download/cvc5-${cvc5_version}/cvc5-Linux-x86_64-static.zip" -O /opt/cvc5.zip; \
+	test "$(sha256sum /opt/cvc5.zip)" = "d18f174ff9a11923c32c3f871f844ed16bd77a28f51050b8e7c8d821c98a1c2e  /opt/cvc5.zip"; \
+	unzip /opt/cvc5.zip -x "cvc5-Linux-x86_64-static/lib/cmake/*" -d /opt; \
+	mv /opt/cvc5-Linux-x86_64-static/bin/* /usr/bin; \
+	mv /opt/cvc5-Linux-x86_64-static/include/* /usr/include; \
+	mv /opt/cvc5-Linux-x86_64-static/lib/* /usr/lib; \
+	rm -rf /opt/cvc5-Linux-x86_64-static /opt/cvc5.zip;
 
 # OSSFUZZ: libprotobuf-mutator
 RUN set -ex; \

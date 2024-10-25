@@ -89,7 +89,8 @@ TestCase::TestResult FunctionSideEffects::run(std::ostream& _stream, std::string
 		BOOST_THROW_EXCEPTION(std::runtime_error("Parsing input failed."));
 
 	std::map<YulName, SideEffects> functionSideEffects = SideEffectsPropagator::sideEffects(
-		EVMDialect::strictAssemblyForEVMObjects(langutil::EVMVersion()),
+		EVMDialect::strictAssemblyForEVMObjects(solidity::test::CommonOptions::get().evmVersion(),
+			solidity::test::CommonOptions::get().eofVersion()),
 		CallGraphGenerator::callGraph(obj.code()->root())
 	);
 

@@ -63,7 +63,8 @@ TestCase::TestResult ControlFlowSideEffectsTest::run(std::ostream& _stream, std:
 		BOOST_THROW_EXCEPTION(std::runtime_error("Parsing input failed."));
 
 	ControlFlowSideEffectsCollector sideEffects(
-		EVMDialect::strictAssemblyForEVMObjects(langutil::EVMVersion()),
+		EVMDialect::strictAssemblyForEVMObjects(solidity::test::CommonOptions::get().evmVersion(),
+			solidity::test::CommonOptions::get().eofVersion()),
 		obj.code()->root()
 	);
 	m_obtainedResult.clear();

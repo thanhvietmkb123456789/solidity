@@ -106,7 +106,7 @@ void FullInliner::run(Pass _pass)
 	for (auto& statement: m_ast.statements)
 		if (std::holds_alternative<FunctionDefinition>(statement))
 			functions.emplace_back(&std::get<FunctionDefinition>(statement));
-	std::stable_sort(functions.begin(), functions.end(), [depths](
+	std::stable_sort(functions.begin(), functions.end(), [&depths](
 		FunctionDefinition const* _a,
 		FunctionDefinition const* _b
 	) {
@@ -131,7 +131,7 @@ std::map<YulName, size_t> FullInliner::callDepths() const
 	// Remove calls to builtin functions.
 	for (auto& call: cg.functionCalls)
 		for (auto it = call.second.begin(); it != call.second.end();)
-			if (m_dialect.builtin(*it))
+			if (m_dialect.findBuiltin(it->str()))
 				it = call.second.erase(it);
 			else
 				++it;

@@ -37,6 +37,7 @@
 
 namespace solidity::yul
 {
+class SSACFGLiveness;
 
 class SSACFG
 {
@@ -206,6 +207,12 @@ public:
 		yulAssert(it->second.value < m_valueInfos.size());
 		return it->second;
 	}
+
+	std::string toDot(
+		bool _includeDiGraphDefinition=true,
+		std::optional<size_t> _functionIndex=std::nullopt,
+		SSACFGLiveness const* _liveness=nullptr
+	) const;
 private:
 	std::deque<ValueInfo> m_valueInfos;
 	std::map<u256, ValueId> m_literals;

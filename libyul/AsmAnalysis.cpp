@@ -299,7 +299,7 @@ size_t AsmAnalyzer::operator()(FunctionCall const& _funCall)
 	std::optional<size_t> numReturns;
 	std::vector<std::optional<LiteralKind>> const* literalArguments = nullptr;
 
-	if (BuiltinFunction const* f = m_dialect.builtin(_funCall.functionName.name))
+	if (std::optional<BuiltinHandle> handle = m_dialect.findBuiltin(_funCall.functionName.name.str()))
 	{
 		if (_funCall.functionName.name == "selfdestruct"_yulname)
 			m_errorReporter.warning(
@@ -327,13 +327,14 @@ size_t AsmAnalyzer::operator()(FunctionCall const& _funCall)
 				"The use of transient storage for reentrancy guards that are cleared at the end of the call is safe."
 			);
 
-		numParameters = f->numParameters;
-		numReturns = f->numReturns;
-		if (!f->literalArguments.empty())
-			literalArguments = &f->literalArguments;
+		BuiltinFunction const& f = m_dialect.builtin(*handle);
+		numParameters = f.numParameters;
+		numReturns = f.numReturns;
+		if (!f.literalArguments.empty())
+			literalArguments = &f.literalArguments;
 
 		validateInstructions(_funCall);
-		m_sideEffects += f->sideEffects;
+		m_sideEffects += f.sideEffects;
 	}
 	else if (m_currentScope->lookup(_funCall.functionName.name, GenericVisitor{
 		[&](Scope::Variable const&)
@@ -427,6 +428,20 @@ size_t AsmAnalyzer::operator()(FunctionCall const& _funCall)
 				}
 				expectUnlimitedStringLiteral(std::get<Literal>(arg));
 				continue;
+			}
+			else if (*literalArgumentKind == LiteralKind::Number)
+			{
+				std::string functionName = _funCall.functionName.name.str();
+				if (functionName == "auxdataloadn")
+				{
+					auto const& argumentAsLiteral = std::get<Literal>(arg);
+					if (argumentAsLiteral.value.value() > std::numeric_limits<uint16_t>::max())
+						m_errorReporter.typeError(
+							5202_error,
+							nativeLocationOf(arg),
+							"Invalid auxdataloadn argument value. Offset must be in range 0...0xFFFF"
+						);
+				}
 			}
 		}
 		expectExpression(arg);
@@ -614,7 +629,7 @@ void AsmAnalyzer::expectValidIdentifier(YulName _identifier, SourceLocation cons
 			"\"" + _identifier.str() + "\" is not a valid identifier (contains consecutive dots)."
 		);
 
-	if (m_dialect.reservedIdentifier(_identifier))
+	if (m_dialect.reservedIdentifier(_identifier.str()))
 		m_errorReporter.declarationError(
 			5017_error,
 			_location,
@@ -625,11 +640,18 @@ void AsmAnalyzer::expectValidIdentifier(YulName _identifier, SourceLocation cons
 bool AsmAnalyzer::validateInstructions(std::string const& _instructionIdentifier, langutil::SourceLocation const& _location)
 {
 	// NOTE: This function uses the default EVM version instead of the currently selected one.
-	auto const builtin = EVMDialect::strictAssemblyForEVM(EVMVersion{}).builtin(YulName(_instructionIdentifier));
-	if (builtin && builtin->instruction.has_value())
-		return validateInstructions(builtin->instruction.value(), _location);
-	else
-		return false;
+	auto const& defaultEVMDialect = EVMDialect::strictAssemblyForEVM(EVMVersion{}, std::nullopt);
+	auto const builtinHandle = defaultEVMDialect.findBuiltin(_instructionIdentifier);
+	if (builtinHandle && defaultEVMDialect.builtin(*builtinHandle).instruction.has_value())
+		return validateInstructions(*defaultEVMDialect.builtin(*builtinHandle).instruction, _location);
+
+	// TODO: Change `prague()` to `EVMVersion{}` once EOF gets deployed
+	auto const& eofDialect = EVMDialect::strictAssemblyForEVM(EVMVersion::prague(), 1);
+	auto const eofBuiltinHandle = eofDialect.findBuiltin(_instructionIdentifier);
+	if (eofBuiltinHandle && eofDialect.builtin(*eofBuiltinHandle).instruction.has_value())
+		return validateInstructions(*eofDialect.builtin(*eofBuiltinHandle).instruction, _location);
+
+	return false;
 }
 
 bool AsmAnalyzer::validateInstructions(evmasm::Instruction _instr, SourceLocation const& _location)
@@ -701,9 +723,42 @@ bool AsmAnalyzer::validateInstructions(evmasm::Instruction _instr, SourceLocatio
 			"PC instruction is a low-level EVM feature. "
 			"Because of that PC is disallowed in strict assembly."
 		);
+	else if (m_eofVersion.has_value() && (
+		_instr == evmasm::Instruction::CALL ||
+		_instr == evmasm::Instruction::CALLCODE ||
+		_instr == evmasm::Instruction::DELEGATECALL ||
+		_instr == evmasm::Instruction::SELFDESTRUCT ||
+		_instr == evmasm::Instruction::JUMP ||
+		_instr == evmasm::Instruction::JUMPI ||
+		_instr == evmasm::Instruction::PC ||
+		_instr == evmasm::Instruction::CREATE ||
+		_instr == evmasm::Instruction::CODESIZE ||
+		_instr == evmasm::Instruction::CODECOPY ||
+		_instr == evmasm::Instruction::EXTCODESIZE ||
+		_instr == evmasm::Instruction::EXTCODECOPY ||
+		_instr == evmasm::Instruction::GAS
+	))
+	{
+		m_errorReporter.typeError(
+			9132_error,
+			_location,
+			fmt::format(
+				"The \"{instruction}\" instruction is {kind} VMs (you are currently compiling to EOF).",
+				fmt::arg("instruction", boost::to_lower_copy(instructionInfo(_instr, m_evmVersion).name)),
+				fmt::arg("kind", "only available in legacy bytecode")
+			)
+		);
+	}
 	else
+	{
+		// Sanity check
+		solAssert(m_evmVersion.hasOpcode(_instr, m_eofVersion));
 		return false;
+	}
 
+	// Sanity check
+	// PC is not available in strict assembly but it is always valid opcode in legacy evm.
+	solAssert(_instr == evmasm::Instruction::PC || !m_evmVersion.hasOpcode(_instr, m_eofVersion));
 	return true;
 }
 

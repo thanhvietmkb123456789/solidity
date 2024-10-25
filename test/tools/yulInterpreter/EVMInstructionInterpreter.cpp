@@ -30,6 +30,7 @@
 #include <libevmasm/Instruction.h>
 #include <libevmasm/SemanticInformation.h>
 
+#include <liblangutil/Exceptions.h>
 #include <libsolutil/Keccak256.h>
 #include <libsolutil/Numeric.h>
 #include <libsolutil/picosha2.h>
@@ -105,8 +106,6 @@ void copyZeroExtendedWithOverlap(
 }
 
 }
-
-using u512 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<512, 256, boost::multiprecision::unsigned_magnitude, boost::multiprecision::unchecked, void>>;
 
 u256 EVMInstructionInterpreter::eval(
 	evmasm::Instruction _instruction,
@@ -417,7 +416,7 @@ u256 EVMInstructionInterpreter::eval(
 		m_state.trace.clear();
 		BOOST_THROW_EXCEPTION(ExplicitlyTerminated());
 	case Instruction::POP:
-		break;
+		return 0;
 	// --------------- invalid in strict assembly ---------------
 	case Instruction::JUMP:
 	case Instruction::JUMPI:
@@ -487,13 +486,12 @@ u256 EVMInstructionInterpreter::eval(
 	case Instruction::SWAP14:
 	case Instruction::SWAP15:
 	case Instruction::SWAP16:
-	{
-		yulAssert(false, "");
-		return 0;
-	}
+		yulAssert(false, "Impossible in strict assembly.");
+	case Instruction::DATALOADN:
+		solUnimplemented("DATALOADN unimplemented in yul interpreter.");
 	}
 
-	return 0;
+	util::unreachable();
 }
 
 u256 EVMInstructionInterpreter::evalBuiltin(
@@ -505,7 +503,7 @@ u256 EVMInstructionInterpreter::evalBuiltin(
 	if (_fun.instruction)
 		return eval(*_fun.instruction, _evaluatedArguments);
 
-	std::string fun = _fun.name.str();
+	std::string const& fun = _fun.name;
 	// Evaluate datasize/offset/copy instructions
 	if (fun == "datasize" || fun == "dataoffset")
 	{

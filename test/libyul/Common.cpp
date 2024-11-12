@@ -84,7 +84,7 @@ std::pair<std::shared_ptr<Object>, std::shared_ptr<yul::AsmAnalysisInfo>> yul::t
 	if (!parserResult->hasCode() || errorReporter.hasErrors())
 		return {};
 	std::shared_ptr<AsmAnalysisInfo> analysisInfo = std::make_shared<AsmAnalysisInfo>();
-	AsmAnalyzer analyzer(*analysisInfo, errorReporter, _dialect, {}, parserResult->qualifiedDataNames());
+	AsmAnalyzer analyzer(*analysisInfo, errorReporter, _dialect, {}, parserResult->summarizeStructure());
 	// TODO this should be done recursively.
 	if (!analyzer.analyze(parserResult->code()->root()) || errorReporter.hasErrors())
 		return {};
@@ -99,7 +99,12 @@ yul::Block yul::test::disambiguate(std::string const& _source)
 
 std::string yul::test::format(std::string const& _source)
 {
-	return yul::AsmPrinter()(parse(_source).first->root());
+	Dialect const& dialect = languageToDialect(
+		YulStack::Language::StrictAssembly,
+		solidity::test::CommonOptions::get().evmVersion(),
+		solidity::test::CommonOptions::get().eofVersion()
+	);
+	return AsmPrinter(dialect)(parse(_source).first->root());
 }
 
 namespace

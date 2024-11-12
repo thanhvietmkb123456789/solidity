@@ -74,12 +74,9 @@ Json YulControlFlowGraphExporter::exportFunction(SSACFG const& _cfg)
 	Json functionJson = Json::object();
 	functionJson["type"] = "Function";
 	functionJson["entry"] = "Block" + std::to_string(_cfg.entry.value);
-	functionJson["arguments"] = Json::array();
-	for (auto const& [arg, valueId]: _cfg.arguments)
-		functionJson["arguments"].emplace_back(arg.get().name.str());
-	functionJson["returns"] = Json::array();
-	for (auto const& ret: _cfg.returns)
-		functionJson["returns"].emplace_back(ret.get().name.str());
+	static auto constexpr argsTransform = [](auto const& _arg) { return fmt::format("v{}", std::get<1>(_arg).value); };
+	functionJson["arguments"] = _cfg.arguments | ranges::views::transform(argsTransform) | ranges::to<std::vector>;
+	functionJson["numReturns"] = _cfg.returns.size();
 	functionJson["blocks"] = exportBlock(_cfg, _cfg.entry);
 	return functionJson;
 }
@@ -96,7 +93,6 @@ Json YulControlFlowGraphExporter::exportBlock(SSACFG const& _cfg, SSACFG::BlockI
 		Json exitBlockJson = Json::object();
 		std::visit(util::GenericVisitor{
 			[&](SSACFG::BasicBlock::MainExit const&) {
-				exitBlockJson["targets"] = { "Block" + std::to_string(_blockId.value) };
 				exitBlockJson["type"] = "MainExit";
 			},
 			[&](SSACFG::BasicBlock::Jump const& _jump)
@@ -115,12 +111,10 @@ Json YulControlFlowGraphExporter::exportBlock(SSACFG const& _cfg, SSACFG::BlockI
 				_addChild(_conditionalJump.nonZero);
 			},
 			[&](SSACFG::BasicBlock::FunctionReturn const& _return) {
-				exitBlockJson["instructions"] = toJson(_cfg, _return.returnValues);
-				exitBlockJson["targets"] = { "Block" + std::to_string(_blockId.value) };
+				exitBlockJson["returnValues"] = toJson(_cfg, _return.returnValues);
 				exitBlockJson["type"] = "FunctionReturn";
 			},
 			[&](SSACFG::BasicBlock::Terminated const&) {
-				exitBlockJson["targets"] = { "Block" + std::to_string(_blockId.value) };
 				exitBlockJson["type"] = "Terminated";
 			},
 			[&](SSACFG::BasicBlock::JumpTable const&) {

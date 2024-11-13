@@ -389,7 +389,8 @@ Json YulStack::cfgJson() const
 			languageToDialect(m_language, m_evmVersion, m_eofVersion),
 			_object.code()->root()
 		);
-		YulControlFlowGraphExporter exporter(*controlFlow);
+		ControlFlowLiveness liveness(*controlFlow);
+		YulControlFlowGraphExporter exporter(*controlFlow, liveness);
 		return exporter.run();
 	};
 

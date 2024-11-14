@@ -64,9 +64,6 @@ bool SyntacticallyEqual::expressionEqual(Identifier const& _lhs, Identifier cons
 }
 bool SyntacticallyEqual::expressionEqual(Literal const& _lhs, Literal const& _rhs)
 {
-	yulAssert(validLiteral(_lhs), "Invalid lhs literal during syntactical equality check");
-	yulAssert(validLiteral(_rhs), "Invalid rhs literal during syntactical equality check");
-
 	return _lhs.value == _rhs.value;
 }
 

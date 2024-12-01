@@ -209,6 +209,9 @@ std::vector<std::optional<BuiltinFunctionForEVM>> createBuiltins(langutil::EVMVe
 			opcode != evmasm::Instruction::DATALOADN &&
 			opcode != evmasm::Instruction::EOFCREATE &&
 			opcode != evmasm::Instruction::RETURNCONTRACT &&
+			opcode != evmasm::Instruction::CALLF &&
+			opcode != evmasm::Instruction::JUMPF &&
+			opcode != evmasm::Instruction::RETF &&
 			_evmVersion.hasOpcode(opcode, _eofVersion) &&
 			!prevRandaoException(name)
 		)
@@ -307,17 +310,7 @@ std::vector<std::optional<BuiltinFunctionForEVM>> createBuiltins(langutil::EVMVe
 			"datacopy",
 			3,
 			0,
-			SideEffects{
-				false,               // movable
-				true,                // movableApartFromEffects
-				false,               // canBeRemoved
-				false,               // canBeRemovedIfNotMSize
-				true,                // cannotLoop
-				SideEffects::None,   // otherState
-				SideEffects::None,   // storage
-				SideEffects::Write,  // memory
-				SideEffects::None    // transientStorage
-			},
+			EVMDialect::sideEffectsOfInstruction(evmasm::Instruction::CODECOPY),
 			ControlFlowSideEffects::fromInstruction(evmasm::Instruction::CODECOPY),
 			{},
 			[](
@@ -576,7 +569,7 @@ BuiltinFunctionForEVM EVMDialect::createVerbatimFunction(size_t _arguments, size
 		1 + _arguments,
 		_returnVariables,
 		SideEffects::worst(),
-		ControlFlowSideEffects{},
+		ControlFlowSideEffects::worst(), // Worst control flow side effects because verbatim can do anything.
 		std::vector<std::optional<LiteralKind>>{LiteralKind::String} + std::vector<std::optional<LiteralKind>>(_arguments),
 		[=](
 			FunctionCall const& _call,

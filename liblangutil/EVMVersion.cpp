@@ -80,6 +80,11 @@ bool EVMVersion::hasOpcode(Instruction _opcode, std::optional<uint8_t> _eofVersi
 	case Instruction::EOFCREATE:
 	case Instruction::RETURNCONTRACT:
 	case Instruction::DATALOADN:
+	case Instruction::RJUMP:
+	case Instruction::RJUMPI:
+	case Instruction::CALLF:
+	case Instruction::JUMPF:
+	case Instruction::RETF:
 		return _eofVersion.has_value();
 	default:
 		return true;

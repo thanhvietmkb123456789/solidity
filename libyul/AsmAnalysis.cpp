@@ -290,6 +290,23 @@ void AsmAnalyzer::operator()(FunctionDefinition const& _funDef)
 		m_activeVariables.insert(&std::get<Scope::Variable>(varScope.identifiers.at(var.name)));
 	}
 
+	if (m_eofVersion.has_value())
+	{
+		if (_funDef.parameters.size() >= 0x80)
+			m_errorReporter.typeError(
+				8534_error,
+				nativeLocationOf(_funDef),
+				"Too many function parameters. At most 127 parameters allowed for EOF"
+			);
+
+		if (_funDef.returnVariables.size() >= 0x80)
+			m_errorReporter.typeError(
+				2101_error,
+				nativeLocationOf(_funDef),
+				"Too many function return variables. At most 127 return variables allowed for EOF"
+			);
+	}
+
 	(*this)(_funDef.body);
 }
 
@@ -800,13 +817,27 @@ bool AsmAnalyzer::validateInstructions(FunctionCall const& _functionCall)
 
 void AsmAnalyzer::validateObjectStructure(langutil::SourceLocation _astRootLocation)
 {
-	if (m_eofVersion.has_value() && util::contains(m_objectStructure.objectName, '.')) // No dots in object name for EOF
-		m_errorReporter.syntaxError(
-			9822_error,
-			_astRootLocation,
-			fmt::format(
-				"The object name \"{objectName}\" is invalid in EOF context. Object names must not contain 'dot' character.",
-				fmt::arg("objectName", m_objectStructure.objectName)
-			)
-		);
+	if (m_eofVersion.has_value())
+	{
+		if (util::contains(m_objectStructure.objectName, '.')) // No dots in object name for EOF
+			m_errorReporter.syntaxError(
+				9822_error,
+				_astRootLocation,
+				fmt::format(
+					"The object name \"{objectName}\" is invalid in EOF context. Object names must not contain 'dot' character.",
+					fmt::arg("objectName", m_objectStructure.objectName)
+				)
+			);
+		else if (m_objectStructure.topLevelSubObjectNames().size() > 256)
+		{
+			m_errorReporter.syntaxError(
+				1305_error,
+				_astRootLocation,
+				fmt::format(
+					"Too many subobjects in \"{objectName}\". At most 256 subobjects allowed when compiling to EOF",
+					fmt::arg("objectName", m_objectStructure.objectName)
+				)
+			);
+		}
+	}
 }

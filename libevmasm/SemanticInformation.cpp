@@ -231,6 +231,9 @@ bool SemanticInformation::breaksCSEAnalysisBlock(AssemblyItem const& _item, bool
 	case PushDeployTimeAddress:
 	case AssignImmutable:
 	case VerbatimBytecode:
+	case CallF:
+	case JumpF:
+	case RetF:
 		return true;
 	case Push:
 	case PushTag:
@@ -301,11 +304,6 @@ bool SemanticInformation::isSwapInstruction(AssemblyItem const& _item)
 	return evmasm::isSwapInstruction(_item.instruction());
 }
 
-bool SemanticInformation::isJumpInstruction(AssemblyItem const& _item)
-{
-	return _item == Instruction::JUMP || _item == Instruction::JUMPI;
-}
-
 bool SemanticInformation::altersControlFlow(AssemblyItem const& _item)
 {
 	if (!_item.hasInstruction())
@@ -317,12 +315,17 @@ bool SemanticInformation::altersControlFlow(AssemblyItem const& _item)
 	// continue on the next instruction
 	case Instruction::JUMP:
 	case Instruction::JUMPI:
+	case Instruction::RJUMP:
+	case Instruction::RJUMPI:
 	case Instruction::RETURN:
 	case Instruction::SELFDESTRUCT:
 	case Instruction::STOP:
 	case Instruction::INVALID:
 	case Instruction::REVERT:
 	case Instruction::RETURNCONTRACT:
+	case Instruction::CALLF:
+	case Instruction::JUMPF:
+	case Instruction::RETF:
 		return true;
 	default:
 		return false;
@@ -389,6 +392,8 @@ bool SemanticInformation::isDeterministic(AssemblyItem const& _item)
 	case Instruction::RETURNDATACOPY: // depends on previous calls
 	case Instruction::RETURNDATASIZE:
 	case Instruction::EOFCREATE:
+	case Instruction::CALLF:
+	case Instruction::JUMPF:
 		return false;
 	default:
 		return true;
@@ -613,6 +618,8 @@ bool SemanticInformation::invalidInPureFunctions(Instruction _instruction)
 
 bool SemanticInformation::invalidInViewFunctions(Instruction _instruction)
 {
+	// Relative jumps cannot jump out of the current code section of EOF so they are valid in view functions
+	// (under the assumption that every Solidity function actually gets its own code section).
 	switch (_instruction)
 	{
 	case Instruction::SSTORE:

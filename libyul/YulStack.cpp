@@ -62,6 +62,7 @@ bool YulStack::parse(std::string const& _sourceName, std::string const& _source)
 	catch (UnimplementedFeatureError const& _error)
 	{
 		reportUnimplementedFeatureError(_error);
+		return false;
 	}
 
 	if (!m_errorReporter.hasErrors())
@@ -94,7 +95,7 @@ void YulStack::optimize()
 	{
 		if (
 			!m_optimiserSettings.runYulOptimiser &&
-			yul::MSizeFinder::containsMSize(languageToDialect(m_language, m_evmVersion, m_eofVersion), *m_parserResult)
+			yul::MSizeFinder::containsMSize(*m_parserResult)
 		)
 			return;
 
@@ -192,19 +193,7 @@ bool YulStack::analyzeParsed(Object& _object)
 
 void YulStack::compileEVM(AbstractAssembly& _assembly, bool _optimize) const
 {
-	EVMDialect const* dialect = nullptr;
-	switch (m_language)
-	{
-		case Language::Assembly:
-		case Language::StrictAssembly:
-			dialect = &EVMDialect::strictAssemblyForEVMObjects(m_evmVersion, m_eofVersion);
-			break;
-		default:
-			yulAssert(false, "Invalid language.");
-			break;
-	}
-
-	EVMObjectCompiler::compile(*m_parserResult, _assembly, *dialect, _optimize, m_eofVersion);
+	EVMObjectCompiler::compile(*m_parserResult, _assembly, _optimize);
 }
 
 void YulStack::reparse()
@@ -260,9 +249,14 @@ MachineAssemblyObject YulStack::assemble(Machine _machine)
 std::pair<MachineAssemblyObject, MachineAssemblyObject>
 YulStack::assembleWithDeployed(std::optional<std::string_view> _deployName)
 {
+	yulAssert(m_charStream);
+
 	auto [creationAssembly, deployedAssembly] = assembleEVMWithDeployed(_deployName);
-	yulAssert(creationAssembly, "");
-	yulAssert(m_charStream, "");
+	if (!creationAssembly)
+	{
+		yulAssert(!deployedAssembly);
+		return {MachineAssemblyObject{}, MachineAssemblyObject{}};
+	}
 
 	MachineAssemblyObject creationObject;
 	MachineAssemblyObject deployedObject;
@@ -293,9 +287,15 @@ YulStack::assembleWithDeployed(std::optional<std::string_view> _deployName)
 			);
 		}
 	}
+	catch (Error const& _error)
+	{
+		m_errorReporter.codeGenerationError(_error);
+		return {MachineAssemblyObject{}, MachineAssemblyObject{}};
+	}
 	catch (UnimplementedFeatureError const& _error)
 	{
 		reportUnimplementedFeatureError(_error);
+		return {MachineAssemblyObject{}, MachineAssemblyObject{}};
 	}
 
 	return {std::move(creationObject), std::move(deployedObject)};
@@ -317,7 +317,7 @@ YulStack::assembleEVMWithDeployed(std::optional<std::string_view> _deployName)
 	// it with the minimal steps required to avoid "stack too deep".
 	bool optimize = m_optimiserSettings.optimizeStackAllocation || (
 		!m_optimiserSettings.runYulOptimiser &&
-		!yul::MSizeFinder::containsMSize(languageToDialect(m_language, m_evmVersion, m_eofVersion), *m_parserResult)
+		!yul::MSizeFinder::containsMSize(*m_parserResult)
 	);
 	try
 	{
@@ -349,12 +349,18 @@ YulStack::assembleEVMWithDeployed(std::optional<std::string_view> _deployName)
 			return {std::make_shared<evmasm::Assembly>(assembly), std::make_shared<evmasm::Assembly>(runtimeAssembly)};
 		}
 	}
+	catch (Error const& _error)
+	{
+		m_errorReporter.codeGenerationError(_error);
+		return {nullptr, nullptr};
+	}
 	catch (UnimplementedFeatureError const& _error)
 	{
 		reportUnimplementedFeatureError(_error);
+		return {nullptr, nullptr};
 	}
 
-	return {std::make_shared<evmasm::Assembly>(assembly), {}};
+	return {std::make_shared<evmasm::Assembly>(assembly), nullptr};
 }
 
 std::string YulStack::print() const
@@ -389,7 +395,8 @@ Json YulStack::cfgJson() const
 			languageToDialect(m_language, m_evmVersion, m_eofVersion),
 			_object.code()->root()
 		);
-		YulControlFlowGraphExporter exporter(*controlFlow);
+		std::unique_ptr<ControlFlowLiveness> liveness = std::make_unique<ControlFlowLiveness>(*controlFlow);
+		YulControlFlowGraphExporter exporter(*controlFlow, liveness.get());
 		return exporter.run();
 	};
 
@@ -423,8 +430,18 @@ std::shared_ptr<Object> YulStack::parserResult() const
 	return m_parserResult;
 }
 
+Dialect const& YulStack::dialect() const
+{
+	yulAssert(m_stackState >= AnalysisSuccessful);
+	yulAssert(m_parserResult && m_parserResult->dialect());
+	return *m_parserResult->dialect();
+}
+
 void YulStack::reportUnimplementedFeatureError(UnimplementedFeatureError const& _error)
 {
-	solAssert(_error.comment(), "Unimplemented feature errors must include a message for the user");
+	yulAssert(m_charStream);
+	yulAssert(_error.comment(), "Errors must include a message for the user.");
+	if (_error.sourceLocation().sourceName)
+		yulAssert(*_error.sourceLocation().sourceName == m_charStream->name());
 	m_errorReporter.unimplementedFeatureError(1920_error, _error.sourceLocation(), *_error.comment());
 }

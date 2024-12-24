@@ -56,12 +56,12 @@ std::vector<StackTooDeepError> OptimizedEVMCodeTransform::run(
 		for (Scope::Function const* function: dfg->functions)
 		{
 			auto const& info = dfg->functionInfo.at(function);
-			yulAssert(info.parameters.size() <= 0x7f);
-			yulAssert(info.returnVariables.size() <= 0x7f);
-			// According to EOF spec function output num equals 0x80 means non-returning function
+			yulAssert(info.parameters.size() <= std::numeric_limits<uint8_t>::max());
+			yulAssert(info.returnVariables.size() <= std::numeric_limits<uint8_t>::max());
 			auto functionID = _assembly.registerFunction(
 				static_cast<uint8_t>(info.parameters.size()),
-				static_cast<uint8_t>(info.canContinue ? info.returnVariables.size() : 0x80)
+				static_cast<uint8_t>(info.returnVariables.size()),
+				!info.canContinue
 			);
 			_builtinContext.functionIDs[function] = functionID;
 		}
@@ -73,7 +73,8 @@ std::vector<StackTooDeepError> OptimizedEVMCodeTransform::run(
 		_useNamedLabelsForFunctions,
 		*dfg,
 		stackLayout,
-		!_dialect.eofVersion().has_value()
+		!_dialect.eofVersion().has_value(),
+		_dialect
 	);
 	// Create initial entry layout.
 	optimizedCodeTransform.createStackLayout(debugDataOf(*dfg->entry), stackLayout.blockInfos.at(dfg->entry).entryLayout);
@@ -127,8 +128,6 @@ void OptimizedEVMCodeTransform::operator()(CFG::FunctionCall const& _call)
 		for (size_t i = 0; i < _call.function.get().numArguments + (useReturnLabel ? 1 : 0); ++i)
 			m_stack.pop_back();
 		// Push return values to m_stack.
-		if (!m_simulateFunctionsWithJumps)
-			yulAssert(_call.function.get().numReturns < 0x80, "Num of function output >= 128");
 		for (size_t index: ranges::views::iota(0u, _call.function.get().numReturns))
 			m_stack.emplace_back(TemporarySlot{_call.functionCall, index});
 		yulAssert(m_assembly.stackHeight() == static_cast<int>(m_stack.size()), "");
@@ -202,12 +201,14 @@ OptimizedEVMCodeTransform::OptimizedEVMCodeTransform(
 	UseNamedLabels _useNamedLabelsForFunctions,
 	CFG const& _dfg,
 	StackLayout const& _stackLayout,
-	bool _simulateFunctionsWithJumps
+	bool _simulateFunctionsWithJumps,
+	EVMDialect const& _dialect
 ):
 	m_assembly(_assembly),
 	m_builtinContext(_builtinContext),
 	m_dfg(_dfg),
 	m_stackLayout(_stackLayout),
+	m_dialect(_dialect),
 	m_functionLabels(!_simulateFunctionsWithJumps ? decltype(m_functionLabels)() : [&](){
 		std::map<CFG::FunctionInfo const*, AbstractAssembly::LabelID> functionLabels;
 		std::set<YulName> assignedFunctionNames;
@@ -294,9 +295,9 @@ void OptimizedEVMCodeTransform::createStackLayout(langutil::DebugData::ConstPtr 
 				YulName varNameDeep = slotVariableName(deepSlot);
 				YulName varNameTop = slotVariableName(m_stack.back());
 				std::string msg =
-					"Cannot swap " + (varNameDeep.empty() ? "Slot " + stackSlotToString(deepSlot) : "Variable " + varNameDeep.str()) +
-					" with " + (varNameTop.empty() ? "Slot " + stackSlotToString(m_stack.back()) : "Variable " + varNameTop.str()) +
-					": too deep in the stack by " + std::to_string(deficit) + " slots in " + stackToString(m_stack);
+					"Cannot swap " + (varNameDeep.empty() ? "Slot " + stackSlotToString(deepSlot, m_dialect) : "Variable " + varNameDeep.str()) +
+					" with " + (varNameTop.empty() ? "Slot " + stackSlotToString(m_stack.back(), m_dialect) : "Variable " + varNameTop.str()) +
+					": too deep in the stack by " + std::to_string(deficit) + " slots in " + stackToString(m_stack, m_dialect);
 				m_stackErrors.emplace_back(StackTooDeepError(
 					m_currentFunctionInfo ? m_currentFunctionInfo->function.name : YulName{},
 					varNameDeep.empty() ? varNameTop : varNameDeep,
@@ -324,8 +325,8 @@ void OptimizedEVMCodeTransform::createStackLayout(langutil::DebugData::ConstPtr 
 					int deficit = static_cast<int>(*depth - 15);
 					YulName varName = slotVariableName(_slot);
 					std::string msg =
-						(varName.empty() ? "Slot " + stackSlotToString(_slot) : "Variable " + varName.str())
-						+ " is " + std::to_string(*depth - 15) + " too deep in the stack " + stackToString(m_stack);
+						(varName.empty() ? "Slot " + stackSlotToString(_slot, m_dialect) : "Variable " + varName.str())
+						+ " is " + std::to_string(*depth - 15) + " too deep in the stack " + stackToString(m_stack, m_dialect);
 					m_stackErrors.emplace_back(StackTooDeepError(
 						m_currentFunctionInfo ? m_currentFunctionInfo->function.name : YulName{},
 						varName,

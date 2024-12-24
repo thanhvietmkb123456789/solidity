@@ -153,6 +153,18 @@ std::set<std::string, std::less<>> createReservedIdentifiers(langutil::EVMVersio
 			(_instr == evmasm::Instruction::TSTORE || _instr == evmasm::Instruction::TLOAD);
 	};
 
+	auto eofIdentifiersException = [&](evmasm::Instruction _instr) -> bool
+	{
+		solAssert(!_eofVersion.has_value() || _evmVersion >= langutil::EVMVersion::prague());
+		return
+			!_eofVersion.has_value() &&
+			(
+				_instr == evmasm::Instruction::EXTCALL ||
+				_instr == evmasm::Instruction::EXTSTATICCALL ||
+				_instr == evmasm::Instruction::EXTDELEGATECALL
+			);
+	};
+
 	std::set<std::string, std::less<>> reserved;
 	for (auto const& instr: evmasm::c_instructions)
 	{
@@ -163,7 +175,8 @@ std::set<std::string, std::less<>> createReservedIdentifiers(langutil::EVMVersio
 			!blobHashException(instr.second) &&
 			!blobBaseFeeException(instr.second) &&
 			!mcopyException(instr.second) &&
-			!transientStorageException(instr.second)
+			!transientStorageException(instr.second) &&
+			!eofIdentifiersException(instr.second)
 		)
 			reserved.emplace(name);
 	}
@@ -209,6 +222,8 @@ std::vector<std::optional<BuiltinFunctionForEVM>> createBuiltins(langutil::EVMVe
 			opcode != evmasm::Instruction::DATALOADN &&
 			opcode != evmasm::Instruction::EOFCREATE &&
 			opcode != evmasm::Instruction::RETURNCONTRACT &&
+			opcode != evmasm::Instruction::RJUMP &&
+			opcode != evmasm::Instruction::RJUMPI &&
 			opcode != evmasm::Instruction::CALLF &&
 			opcode != evmasm::Instruction::JUMPF &&
 			opcode != evmasm::Instruction::RETF &&
@@ -473,6 +488,13 @@ EVMDialect::EVMDialect(langutil::EVMVersion _evmVersion, std::optional<uint8_t> 
 	m_storageStoreFunction = findBuiltin("sstore");
 	m_storageLoadFunction = findBuiltin("sload");
 	m_hashFunction = findBuiltin("keccak256");
+
+	m_auxiliaryBuiltinHandles.add = EVMDialect::findBuiltin("add");
+	m_auxiliaryBuiltinHandles.exp = EVMDialect::findBuiltin("exp");
+	m_auxiliaryBuiltinHandles.mul = EVMDialect::findBuiltin("mul");
+	m_auxiliaryBuiltinHandles.not_ = EVMDialect::findBuiltin("not");
+	m_auxiliaryBuiltinHandles.shl = EVMDialect::findBuiltin("shl");
+	m_auxiliaryBuiltinHandles.sub = EVMDialect::findBuiltin("sub");
 }
 
 std::optional<BuiltinHandle> EVMDialect::findBuiltin(std::string_view _name) const

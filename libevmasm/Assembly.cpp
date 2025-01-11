@@ -46,6 +46,7 @@
 #include <fstream>
 #include <limits>
 #include <iterator>
+#include <stack>
 
 using namespace solidity;
 using namespace solidity::evmasm;
@@ -89,7 +90,7 @@ void Assembly::importAssemblyItemsFromJSON(Json const& _code, std::vector<std::s
 	solAssert(m_codeSections.size() == 1);
 	solAssert(m_codeSections[0].items.empty());
 	// TODO: Add support for EOF and more than one code sections.
-	solUnimplementedAssert(!m_eofVersion.has_value(), "Assembly output for EOF is not yet implemented.");
+	solUnimplementedAssert(!m_eofVersion.has_value(), "Assembly import for EOF is not yet implemented.");
 	solRequire(_code.is_array(), AssemblyImportException, "Supplied JSON is not an array.");
 	for (auto jsonItemIter = std::begin(_code); jsonItemIter != std::end(_code); ++jsonItemIter)
 	{
@@ -281,7 +282,7 @@ AssemblyItem Assembly::createAssemblyItemFromJSON(Json const& _json, std::vector
 			result = item;
 		}
 		else
-			solThrow(InvalidOpcode, "Invalid opcode: " + name);
+			solThrow(AssemblyImportException, "Invalid opcode (" + name + ")");
 	}
 	result.setLocation(location);
 	result.m_modifierDepth = modifierDepth;
@@ -407,9 +408,15 @@ void Assembly::assemblyStream(
 		f.feed(i, _debugInfoSelection);
 	f.flush();
 
-	// Implementing this requires introduction of CALLF, RETF and JUMPF
-	if (m_codeSections.size() > 1)
-		solUnimplemented("Add support for more code sections");
+	for (size_t i = 1; i < m_codeSections.size(); ++i)
+	{
+		_out << std::endl << _prefix << "code_section_" << i << ": assembly {\n";
+		Functionalizer codeSectionF(_out, _prefix + "    ", _sourceCodes, *this);
+		for (auto const& item: m_codeSections[i].items)
+			codeSectionF.feed(item, _debugInfoSelection);
+		codeSectionF.flush();
+		_out << _prefix << "}" << std::endl;
+	}
 
 	if (!m_data.empty() || !m_subs.empty())
 	{
@@ -445,7 +452,7 @@ Json Assembly::assemblyJSON(std::map<std::string, unsigned> const& _sourceIndice
 	Json root;
 	root[".code"] = Json::array();
 	Json& code = root[".code"];
-    // TODO: support EOF
+	// TODO: support EOF
 	solUnimplementedAssert(!m_eofVersion.has_value(), "Assembly output for EOF is not yet implemented.");
 	solAssert(m_codeSections.size() == 1);
 	for (AssemblyItem const& item: m_codeSections.front().items)
@@ -696,6 +703,49 @@ AssemblyItem Assembly::namedTag(std::string const& _name, size_t _params, size_t
 	return AssemblyItem{Tag, m_namedTags.at(_name).id};
 }
 
+AssemblyItem Assembly::newFunctionCall(uint16_t _functionID) const
+{
+	solAssert(_functionID < m_codeSections.size(), "Call to undeclared function.");
+	solAssert(_functionID > 0, "Cannot call section 0");
+	auto const& section = m_codeSections.at(_functionID);
+	if (section.nonReturning)
+		return AssemblyItem::jumpToFunction(_functionID, section.inputs, section.outputs);
+	else
+		return AssemblyItem::functionCall(_functionID, section.inputs, section.outputs);
+}
+
+AssemblyItem Assembly::newFunctionReturn() const
+{
+	solAssert(m_currentCodeSection != 0, "Appending function return without begin function.");
+	return AssemblyItem::functionReturn();
+}
+
+uint16_t Assembly::createFunction(uint8_t _args, uint8_t _rets, bool _nonReturning)
+{
+	size_t functionID = m_codeSections.size();
+	solRequire(functionID < 1024, AssemblyException, "Too many functions for EOF");
+	solAssert(m_currentCodeSection == 0, "Functions need to be declared from the main block.");
+	solRequire(_rets <= 127, AssemblyException, "Too many function returns.");
+	solRequire(_args <= 127, AssemblyException, "Too many function inputs.");
+	m_codeSections.emplace_back(CodeSection{_args, _rets, _nonReturning, {}});
+	return static_cast<uint16_t>(functionID);
+}
+
+void Assembly::beginFunction(uint16_t _functionID)
+{
+	solAssert(m_currentCodeSection == 0, "Attempted to begin a function before ending the last one.");
+	solAssert(_functionID != 0, "Attempt to begin a function with id 0");
+	solAssert(_functionID < m_codeSections.size(), "Attempt to begin an undeclared function.");
+	auto& section = m_codeSections.at(_functionID);
+	solAssert(section.items.empty(), "Function already defined.");
+	m_currentCodeSection = _functionID;
+}
+void Assembly::endFunction()
+{
+	solAssert(m_currentCodeSection != 0, "End function without begin function.");
+	m_currentCodeSection = 0;
+}
+
 AssemblyItem Assembly::newPushLibraryAddress(std::string const& _identifier)
 {
 	h256 h(util::keccak256(_identifier));
@@ -922,9 +972,97 @@ void appendBigEndianUint16(bytes& _dest, ValueT _value)
 	assertThrow(_value <= 0xFFFF, AssemblyException, "");
 	appendBigEndian(_dest, 2, static_cast<size_t>(_value));
 }
+
+// Calculates maximum stack height for given code section. According to EIP5450 https://eips.ethereum.org/EIPS/eip-5450
+uint16_t calculateMaxStackHeight(Assembly::CodeSection const& _section)
+{
+	static auto constexpr UNVISITED = std::numeric_limits<size_t>::max();
+
+	AssemblyItems const& items = _section.items;
+	solAssert(!items.empty());
+	uint16_t overallMaxHeight = _section.inputs;
+	std::stack<size_t> worklist;
+	std::vector<size_t> maxStackHeights(items.size(), UNVISITED);
+
+	// Init first item stack height to number of inputs to the code section
+	// maxStackHeights stores stack height for an item before the item execution
+	maxStackHeights[0] = _section.inputs;
+	// Push first item index to the worklist
+	worklist.push(0u);
+	while (!worklist.empty())
+	{
+		size_t idx = worklist.top();
+		worklist.pop();
+		AssemblyItem const& item = items[idx];
+		size_t stackHeightChange = item.deposit();
+		size_t currentMaxHeight = maxStackHeights[idx];
+		solAssert(currentMaxHeight != UNVISITED);
+
+		std::vector<size_t> successors;
+
+		// Add next instruction to successors for non-control-flow-changing instructions
+		if (
+			!(item.hasInstruction() && SemanticInformation::terminatesControlFlow(item.instruction())) &&
+			item.type() != RelativeJump &&
+			item.type() != RetF &&
+			item.type() != JumpF
+		)
+		{
+			solAssert(idx < items.size() - 1, "No terminating instruction.");
+			successors.emplace_back(idx + 1);
+		}
+
+		// Add jumps destinations to successors
+		// TODO: Remember to add RJUMPV when it is supported.
+		if (item.type() == RelativeJump || item.type() == ConditionalRelativeJump)
+		{
+			auto const tagIt = std::find(items.begin(), items.end(), item.tag());
+			solAssert(tagIt != items.end(), "Tag not found.");
+			successors.emplace_back(static_cast<size_t>(std::distance(items.begin(), tagIt)));
+			// TODO: This assert fails until the code is not topologically sorted. Uncomment when sorting introduced.
+			// If backward jump the successor must be already visited.
+			// solAssert(idx <= successors.back() || maxStackHeights[successors.back()] != UNVISITED);
+		}
+
+		solRequire(
+			currentMaxHeight + stackHeightChange <= std::numeric_limits<uint16_t>::max(),
+			AssemblyException,
+			"Stack overflow in EOF function."
+		);
+		overallMaxHeight = std::max(overallMaxHeight, static_cast<uint16_t>(currentMaxHeight + stackHeightChange));
+		currentMaxHeight += stackHeightChange;
+
+		// Set stack height for all instruction successors
+		for (size_t successor: successors)
+		{
+			solAssert(successor < maxStackHeights.size());
+			// Set stack height for newly visited
+			if (maxStackHeights[successor] == UNVISITED)
+			{
+				maxStackHeights[successor] = currentMaxHeight;
+				worklist.push(successor);
+			}
+			else
+			{
+				solAssert(successor < maxStackHeights.size());
+				// For backward jump successor stack height must be equal
+				if (successor < idx)
+					solAssert(maxStackHeights[successor] == currentMaxHeight, "Stack height mismatch.");
+
+				// If successor stack height is smaller update it and recalculate
+				if (currentMaxHeight > maxStackHeights[successor])
+				{
+					maxStackHeights[successor] = currentMaxHeight;
+					worklist.push(successor);
+				}
+			}
+		}
+	}
+	return overallMaxHeight;
+}
 }
 
-std::tuple<bytes, std::vector<size_t>, size_t> Assembly::createEOFHeader(std::set<uint16_t> const& _referencedSubIds) const
+std::tuple<bytes, std::vector<size_t>, size_t> Assembly::createEOFHeader(std::set<ContainerID> const& _referencedSubIds) const
 {
 	bytes retBytecode;
 	std::vector<size_t> codeSectionSizePositions;
@@ -965,9 +1103,9 @@ std::tuple<bytes, std::vector<size_t>, size_t> Assembly::createEOFHeader(std::se
 	for (auto const& codeSection: m_codeSections)
 	{
 		retBytecode.push_back(codeSection.inputs);
-		retBytecode.push_back(codeSection.outputs);
-		// TODO: Add stack height calculation
-		appendBigEndianUint16(retBytecode, 0xFFFFu);
+		// According to EOF spec function output num equals 0x80 means non-returning function
+		retBytecode.push_back(codeSection.nonReturning ? 0x80 : codeSection.outputs);
+		appendBigEndianUint16(retBytecode, calculateMaxStackHeight(codeSection));
 	}
 
 	return {retBytecode, codeSectionSizePositions, dataSectionSizePosition};
@@ -1236,7 +1374,7 @@ LinkerObject const& Assembly::assembleLegacy() const
 			ret.bytecode += assembleTag(item, ret.bytecode.size(), true);
 			break;
 		default:
-			assertThrow(false, InvalidOpcode, "Unexpected opcode while assembling.");
+			solAssert(false, "Unexpected opcode while assembling.");
 		}
 	}
 
@@ -1330,9 +1468,9 @@ LinkerObject const& Assembly::assembleLegacy() const
 	return ret;
 }
 
-std::map<uint16_t, uint16_t> Assembly::findReferencedContainers() const
+std::map<ContainerID, ContainerID> Assembly::findReferencedContainers() const
 {
-	std::set<uint16_t> referencedSubcontainersIds;
+	std::set<ContainerID> referencedSubcontainersIds;
 	solAssert(m_subs.size() <= 0x100); // According to EOF spec
 
 	for (auto&& codeSection: m_codeSections)
@@ -1344,12 +1482,13 @@ std::map<uint16_t, uint16_t> Assembly::findReferencedContainers() const
 				referencedSubcontainersIds.insert(containerId);
 			}
 
-	std::map<uint16_t, uint16_t> replacements;
+	std::map<ContainerID, ContainerID> replacements;
 	uint8_t nUnreferenced = 0;
-	for (uint8_t i = 0; i < static_cast<uint16_t>(m_subs.size()); ++i)
+	for (size_t i = 0; i < m_subs.size(); ++i)
 	{
-		if (referencedSubcontainersIds.count(i) > 0)
-			replacements[i] = static_cast<uint16_t>(i - nUnreferenced);
+		solAssert(i <= std::numeric_limits<ContainerID>::max());
+		if (referencedSubcontainersIds.count(static_cast<ContainerID>(i)) > 0)
+			replacements[static_cast<ContainerID>(i)] = static_cast<ContainerID>(i - nUnreferenced);
 		else
 			nUnreferenced++;
 	}
@@ -1382,9 +1521,9 @@ LinkerObject const& Assembly::assembleEOF() const
 	auto const subIdsReplacements = findReferencedContainers();
 	auto const referencedSubIds = keys(subIdsReplacements);
 
-	solRequire(!m_codeSections.empty(), AssemblyException, "Expected at least one code section.");
-	solRequire(
-		m_codeSections.front().inputs == 0 && m_codeSections.front().outputs == 0x80, AssemblyException,
+	solAssert(!m_codeSections.empty(), "Expected at least one code section.");
+	solAssert(
+		m_codeSections.front().inputs == 0 && m_codeSections.front().outputs == 0 && m_codeSections.front().nonReturning,
 		"Expected the first code section to have zero inputs and be non-returning."
 	);
 
@@ -1396,10 +1535,12 @@ LinkerObject const& Assembly::assembleEOF() const
 
 	m_tagPositionsInBytecode = std::vector<size_t>(m_usedTags, std::numeric_limits<size_t>::max());
 	std::map<size_t, uint16_t> dataSectionRef;
+	std::map<size_t, size_t> tagRef;
 
 	for (auto&& [codeSectionIndex, codeSection]: m_codeSections | ranges::views::enumerate)
 	{
 		auto const sectionStart = ret.bytecode.size();
+		solAssert(!codeSection.items.empty(), "Empty code section.");
 		for (AssemblyItem const& item: codeSection.items)
 		{
 			// store position of the invalid jump destination
@@ -1412,7 +1553,12 @@ LinkerObject const& Assembly::assembleEOF() const
 				solAssert(
 					item.instruction() != Instruction::DATALOADN &&
 					item.instruction() != Instruction::RETURNCONTRACT &&
-					item.instruction() != Instruction::EOFCREATE
+					item.instruction() != Instruction::EOFCREATE &&
+					item.instruction() != Instruction::RJUMP &&
+					item.instruction() != Instruction::RJUMPI &&
+					item.instruction() != Instruction::CALLF &&
+					item.instruction() != Instruction::JUMPF &&
+					item.instruction() != Instruction::RETF
 				);
 				solAssert(!(item.instruction() >= Instruction::PUSH0 && item.instruction() <= Instruction::PUSH32));
 				ret.bytecode += assembleOperation(item);
@@ -1427,16 +1573,30 @@ LinkerObject const& Assembly::assembleEOF() const
 				ret.linkReferences.insert(linkRef);
 				break;
 			}
+			case RelativeJump:
+			case ConditionalRelativeJump:
+			{
+				ret.bytecode.push_back(static_cast<uint8_t>(item.instruction()));
+				tagRef[ret.bytecode.size()] = item.relativeJumpTagID();
+				appendBigEndianUint16(ret.bytecode, 0u);
+				break;
+			}
 			case EOFCreate:
 			{
 				ret.bytecode.push_back(static_cast<uint8_t>(Instruction::EOFCREATE));
-				ret.bytecode.push_back(static_cast<uint8_t>(item.data()));
+				solAssert(item.data() <= std::numeric_limits<ContainerID>::max());
+				auto const containerID = static_cast<ContainerID>(item.data());
+				solAssert(subIdsReplacements.count(containerID) == 1);
+				ret.bytecode.push_back(subIdsReplacements.at(containerID));
 				break;
 			}
 			case ReturnContract:
 			{
 				ret.bytecode.push_back(static_cast<uint8_t>(Instruction::RETURNCONTRACT));
-				ret.bytecode.push_back(static_cast<uint8_t>(item.data()));
+				solAssert(item.data() <= std::numeric_limits<ContainerID>::max());
+				auto const containerID = static_cast<ContainerID>(item.data());
+				solAssert(subIdsReplacements.count(containerID) == 1);
+				ret.bytecode.push_back(subIdsReplacements.at(containerID));
 				break;
 			}
 			case VerbatimBytecode:
@@ -1457,16 +1617,65 @@ LinkerObject const& Assembly::assembleEOF() const
 				appendBigEndianUint16(ret.bytecode, item.data());
 				break;
 			}
+			case CallF:
+			case JumpF:
+			{
+				ret.bytecode.push_back(static_cast<uint8_t>(item.instruction()));
+				solAssert(item.data() <= std::numeric_limits<uint16_t>::max(), "Invalid callf/jumpf index value.");
+				size_t const index = static_cast<uint16_t>(item.data());
+				solAssert(index < m_codeSections.size());
+				solAssert(item.functionSignature().argsNum <= 127);
+				solAssert(item.functionSignature().retsNum <= 127);
+				solAssert(m_codeSections[index].inputs == item.functionSignature().argsNum);
+				solAssert(m_codeSections[index].outputs == item.functionSignature().retsNum);
+				// If CallF the function cannot be non-returning.
+				solAssert(item.type() == JumpF || !m_codeSections[index].nonReturning);
+				appendBigEndianUint16(ret.bytecode, item.data());
+				break;
+			}
+			case RetF:
+				ret.bytecode.push_back(static_cast<uint8_t>(Instruction::RETF));
+				break;
 			default:
-				solThrow(InvalidOpcode, "Unexpected opcode while assembling.");
+				solAssert(false, "Unexpected opcode while assembling.");
 			}
 		}
 
+		if (ret.bytecode.size() - sectionStart > std::numeric_limits<uint16_t>::max())
+			// TODO: Include source location. Note that origin locations we have in debug data are
+			// not usable for error reporting when compiling pure Yul because they point at the optimized source.
+			throw Error(
+				2202_error,
+				Error::Type::CodeGenerationError,
+				"Code section too large for EOF."
+			);
 		setBigEndianUint16(ret.bytecode, codeSectionSizePositions[codeSectionIndex], ret.bytecode.size() - sectionStart);
 	}
 
+	for (auto const& [refPos, tagId]: tagRef)
+	{
+		solAssert(tagId < m_tagPositionsInBytecode.size(), "Reference to non-existing tag.");
+		size_t tagPos = m_tagPositionsInBytecode[tagId];
+		solAssert(tagPos != std::numeric_limits<size_t>::max(), "Reference to tag without position.");
+
+		ptrdiff_t const relativeJumpOffset = static_cast<ptrdiff_t>(tagPos) - (static_cast<ptrdiff_t>(refPos) + 2);
+		// This cannot happen in practice because we'll run into section size limit first.
+		solAssert(-0x8000 <= relativeJumpOffset && relativeJumpOffset <= 0x7FFF, "Relative jump too far");
+		solAssert(relativeJumpOffset < -2 || 0 <= relativeJumpOffset, "Relative jump offset into immediate argument.");
+		setBigEndianUint16(ret.bytecode, refPos, static_cast<size_t>(static_cast<uint16_t>(relativeJumpOffset)));
+	}
+
 	for (auto i: referencedSubIds)
-		ret.bytecode += m_subs[i]->assemble().bytecode;
+	{
+		size_t const subAssemblyPostionInParentObject = ret.bytecode.size();
+		auto const& subAssemblyLinkerObject = m_subs[i]->assemble();
+		// Append subassembly bytecode to the parent assembly result bytecode
+		ret.bytecode += subAssemblyLinkerObject.bytecode;
+		// Add subassembly link references to parent linker object.
+		// Offset accordingly to subassembly position in parent object bytecode
+		for (auto const& [subAssemblyLinkRefPosition, linkRef]: subAssemblyLinkerObject.linkReferences)
+			ret.linkReferences[subAssemblyPostionInParentObject + subAssemblyLinkRefPosition] = linkRef;
+	}
 
 	// TODO: Fill functionDebugData for EOF. It probably should be handled for new code section in the loop above.
 	solRequire(m_namedTags.empty(), AssemblyException, "Named tags must be empty in EOF context.");
@@ -1482,8 +1691,14 @@ LinkerObject const& Assembly::assembleEOF() const
 	// DATALOADN loads 32 bytes from EOF data section zero padded if reading out of data bounds.
 	// In our case we do not allow DATALOADN with offsets which reads out of data bounds.
 	auto const staticAuxDataSize = maxAuxDataLoadNOffset.has_value() ? (*maxAuxDataLoadNOffset + 32u) : 0u;
-	solRequire(preDeployDataSectionSize + staticAuxDataSize < std::numeric_limits<uint16_t>::max(), AssemblyException,
-		"Invalid DATALOADN offset.");
+	auto const preDeployAndStaticAuxDataSize = preDeployDataSectionSize + staticAuxDataSize;
+
+	if (preDeployAndStaticAuxDataSize > std::numeric_limits<uint16_t>::max())
+		throw Error(
+			3965_error,
+			Error::Type::CodeGenerationError,
+			"The highest accessed data offset exceeds the maximum possible size of the static auxdata section."
+		);
 
 	// If some data was already added to data section we need to update data section refs accordingly
 	if (preDeployDataSectionSize > 0)
@@ -1493,8 +1708,6 @@ LinkerObject const& Assembly::assembleEOF() const
 			// staticAuxDataOffset < staticAuxDataSize
 			setBigEndianUint16(ret.bytecode, refPosition, staticAuxDataOffset + preDeployDataSectionSize);
 		}
-
-	auto const preDeployAndStaticAuxDataSize = preDeployDataSectionSize + staticAuxDataSize;
 
 	setBigEndianUint16(ret.bytecode, dataSectionSizePosition, preDeployAndStaticAuxDataSize);
 

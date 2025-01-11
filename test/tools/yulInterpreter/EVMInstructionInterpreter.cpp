@@ -488,8 +488,16 @@ u256 EVMInstructionInterpreter::eval(
 	case Instruction::SWAP16:
 		yulAssert(false, "Impossible in strict assembly.");
 	case Instruction::DATALOADN:
+	case Instruction::CALLF:
+	case Instruction::RETF:
+	case Instruction::JUMPF:
 	case Instruction::EOFCREATE:
 	case Instruction::RETURNCONTRACT:
+	case Instruction::RJUMP:
+	case Instruction::RJUMPI:
+	case Instruction::EXTCALL:
+	case Instruction::EXTSTATICCALL:
+	case Instruction::EXTDELEGATECALL:
 		solUnimplemented("EOF not yet supported by Yul interpreter.");
 	}
 

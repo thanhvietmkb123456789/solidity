@@ -36,7 +36,7 @@ namespace solidity::yul
 {
 
 struct AsmAnalysisInfo;
-struct Dialect;
+class Dialect;
 class GasMeter;
 class Object;
 
@@ -63,7 +63,6 @@ public:
 
 	/// The value nullopt for `_expectedExecutionsPerDeployment` represents creation code.
 	static void run(
-		Dialect const& _dialect,
 		GasMeter const* _meter,
 		Object& _object,
 		bool _optimizeStackAllocation,

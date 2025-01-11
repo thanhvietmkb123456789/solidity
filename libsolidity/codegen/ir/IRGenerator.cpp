@@ -177,7 +177,10 @@ std::string IRGenerator::generate(
 			constructorParams.emplace_back(m_context.newYulVariable());
 		t(
 			"copyConstructorArguments",
-			m_utils.copyConstructorArgumentsToMemoryFunction(_contract, IRNames::creationObject(_contract))
+			m_utils.copyConstructorArgumentsToMemoryFunction(
+				_contract,
+				IRNames::creationObject(_contract)
+			)
 		);
 	}
 	t("constructorParams", joinHumanReadable(constructorParams));
@@ -197,7 +200,20 @@ std::string IRGenerator::generate(
 	t("memoryInitCreation", memoryInit(!creationInvolvesMemoryUnsafeAssembly));
 	t("useSrcMapCreation", formatUseSrcMap(m_context));
 
+	auto const immutableVariables = m_context.immutableVariables();
+	auto const libraryAddressImmutableOffset = (_contract.isLibrary() && eof) ?
+		m_context.libraryAddressImmutableOffset() : 0;
+
 	resetContext(_contract, ExecutionContext::Deployed);
+
+	// When generating to EOF we have to initialize these two members, because they store offsets in EOF data section
+	// which is used during deployed container generation
+	if (m_eofVersion.has_value())
+	{
+		m_context.setImmutableVariables(std::move(immutableVariables));
+		if (_contract.isLibrary())
+			m_context.setLibraryAddressImmutableOffset(libraryAddressImmutableOffset);
+	}
 
 	// NOTE: Function pointers can be passed from creation code via storage variables. We need to
 	// get all the functions they could point to into the dispatch functions even if they're never
@@ -755,7 +771,7 @@ std::string IRGenerator::generateExternalFunction(ContractDefinition const& _con
 		unsigned paramVars = std::make_shared<TupleType>(_functionType.parameterTypes())->sizeOnStack();
 		unsigned retVars = std::make_shared<TupleType>(_functionType.returnParameterTypes())->sizeOnStack();
 
-		ABIFunctions abiFunctions(m_evmVersion, m_context.revertStrings(), m_context.functionCollector());
+		ABIFunctions abiFunctions(m_evmVersion, m_eofVersion, m_context.revertStrings(), m_context.functionCollector());
 		t("abiDecode", abiFunctions.tupleDecoder(_functionType.parameterTypes()));
 		t("params",  suffixedVariableNameList("param_", 0, paramVars));
 		t("retParams",  suffixedVariableNameList("ret_", 0, retVars));
@@ -1015,6 +1031,7 @@ std::string IRGenerator::deployCode(ContractDefinition const& _contract)
 
 	if (eof)
 	{
+		t("library", _contract.isLibrary());
 		t("auxDataStart", std::to_string(CompilerUtils::generalPurposeMemoryStart));
 		solAssert(m_context.reservedMemorySize() <= 0xFFFF, "Reserved memory size exceeded maximum allowed EOF data section size.");
 		t("auxDataSize", std::to_string(m_context.reservedMemorySize()));
@@ -1152,6 +1169,7 @@ void IRGenerator::resetContext(ContractDefinition const& _contract, ExecutionCon
 		m_context.debugInfoSelection(),
 		m_context.soliditySourceProvider()
 	);
+
 	m_context = std::move(newContext);
 
 	m_context.setMostDerivedContract(_contract);

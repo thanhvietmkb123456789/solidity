@@ -120,6 +120,44 @@ std::pair<std::shared_ptr<AbstractAssembly>, AbstractAssembly::SubID> NoOutputAs
 	return {};
 }
 
+AbstractAssembly::FunctionID NoOutputAssembly::registerFunction(uint8_t _args, uint8_t _rets, bool)
+{
+	yulAssert(m_context.numFunctions <= std::numeric_limits<AbstractAssembly::FunctionID>::max());
+	AbstractAssembly::FunctionID id = static_cast<AbstractAssembly::FunctionID>(m_context.numFunctions++);
+	m_context.functionSignatures[id] = {_args, _rets};
+	return id;
+}
+
+void NoOutputAssembly::beginFunction(FunctionID _functionID)
+{
+	yulAssert(m_currentFunctionID == 0, "Attempted to begin a function before ending the last one.");
+	yulAssert(m_context.functionSignatures.count(_functionID) == 1, "Filling unregistered function.");
+	yulAssert(m_stackHeight == 0, "Non-empty stack on beginFunction call.");
+	m_currentFunctionID = _functionID;
+}
+
+void NoOutputAssembly::endFunction()
+{
+	yulAssert(m_currentFunctionID != 0, "End function without begin function.");
+	auto const [_, rets] = m_context.functionSignatures.at(m_currentFunctionID);
+	yulAssert(m_stackHeight == rets, "Stack height mismatch at function end.");
+	m_currentFunctionID = 0;
+}
+
+void NoOutputAssembly::appendFunctionCall(FunctionID _functionID)
+{
+	auto [args, rets] = m_context.functionSignatures.at(_functionID);
+	m_stackHeight += static_cast<int>(rets) - static_cast<int>(args);
+	solAssert(m_stackHeight >= 0);
+}
+
+void NoOutputAssembly::appendFunctionReturn()
+{
+	yulAssert(m_currentFunctionID != 0, "End function without begin function.");
+	auto const [_, rets] = m_context.functionSignatures.at(m_currentFunctionID);
+	yulAssert(m_stackHeight == rets, "Stack height mismatch at function end.");
+}
+
 void NoOutputAssembly::appendDataOffset(std::vector<AbstractAssembly::SubID> const&)
 {
 	appendInstruction(evmasm::Instruction::PUSH1);

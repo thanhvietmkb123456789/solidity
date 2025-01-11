@@ -4,11 +4,14 @@ Language Features:
 
 
 Compiler Features:
+ * Error Reporting: Errors reported during code generation now point at the location of the contract when more fine-grained location is not available.
  * SMTChecker: Z3 is now a runtime dependency, not a build dependency (except for emscripten build).
 
 
 Bugfixes:
 * General: Fix internal compiler error when requesting IR AST outputs for interfaces and abstract contracts.
+* Standard JSON Interface: Fix ``generatedSources`` and ``sourceMap`` being generated internally even when not requested.
+* Yul: Fix internal compiler error when a code generation error should be reported instead.
 
 
 ### 0.8.28 (2024-10-09)

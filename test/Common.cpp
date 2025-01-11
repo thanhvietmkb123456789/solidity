@@ -16,18 +16,24 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 
-#include <stdexcept>
-#include <iostream>
 #include <test/Common.h>
+
 #include <test/EVMHost.h>
 #include <test/libsolidity/util/SoltestErrors.h>
 
+#include <libyul/backends/evm/EVMDialect.h>
+
 #include <libsolutil/Assertions.h>
 #include <libsolutil/StringUtils.h>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
+
 #include <range/v3/all.hpp>
+
+#include <iostream>
+#include <stdexcept>
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
@@ -260,6 +266,12 @@ langutil::EVMVersion CommonOptions::evmVersion() const
 		return langutil::EVMVersion();
 }
 
+yul::EVMDialect const& CommonOptions::evmDialect() const
+{
+	return yul::EVMDialect::strictAssemblyForEVMObjects(evmVersion(), eofVersion());
+}
+
+
 CommonOptions const& CommonOptions::get()
 {
 	if (!m_singleton)
@@ -288,6 +300,13 @@ bool isValidSemanticTestPath(boost::filesystem::path const& _testPath)
 			return false;
 	}
 	return true;
+}
+
+boost::unit_test::precondition::predicate_t nonEOF()
+{
+	return [](boost::unit_test::test_unit_id) {
+		return !solidity::test::CommonOptions::get().eofVersion().has_value();
+	};
 }
 
 boost::unit_test::precondition::predicate_t minEVMVersionCheck(langutil::EVMVersion _minEVMVersion)

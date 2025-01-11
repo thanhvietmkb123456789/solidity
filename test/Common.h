@@ -29,6 +29,11 @@
 #include <boost/program_options.hpp>
 #include <boost/test/unit_test.hpp>
 
+namespace solidity::yul
+{
+class EVMDialect;
+}
+
 namespace solidity::test
 {
 
@@ -66,6 +71,7 @@ struct CommonOptions
 
 	langutil::EVMVersion evmVersion() const;
 	std::optional<uint8_t> eofVersion() const { return m_eofVersion; }
+	yul::EVMDialect const& evmDialect() const;
 
 	virtual void addOptions();
 	// @returns true if the program should continue, false if it should exit immediately without
@@ -105,6 +111,10 @@ bool isValidSemanticTestPath(boost::filesystem::path const& _testPath);
 /// is older than @p _minEVMVersion.
 /// @return A predicate (function) that can be passed into @a boost::unit_test::precondition().
 boost::unit_test::precondition::predicate_t minEVMVersionCheck(langutil::EVMVersion _minEVMVersion);
+
+/// Helper that can be used to skip tests when the EOF is not supported by the test case.
+/// @return A predicate (function) that can be passed into @a boost::unit_test::precondition().
+boost::unit_test::precondition::predicate_t nonEOF();
 
 bool loadVMs(CommonOptions const& _options);
 

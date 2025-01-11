@@ -24,6 +24,7 @@
 #include <libyul/Exceptions.h>
 #include <libyul/Utilities.h>
 #include <libyul/ControlFlowSideEffectsCollector.h>
+#include <libyul/backends/evm/EVMDialect.h>
 
 #include <libsolutil/cxx20.h>
 #include <libsolutil/Visitor.h>
@@ -51,12 +52,23 @@ namespace
 /// Removes edges to blocks that are not reachable.
 void cleanUnreachable(CFG& _cfg)
 {
+	// If operation is a function call it adds the callee entry as child
+	auto const addFunctionsEntries = [&_cfg](CFG::BasicBlock* _node, auto&& _addChild)
+	{
+		for (auto const& operation: _node->operations)
+		{
+			if (auto const* functionCall = std::get_if<CFG::FunctionCall>(&operation.operation))
+			{
+				auto const functionInfo = _cfg.functionInfo.at(&(functionCall->function.get()));
+				_addChild(functionInfo.entry);
+			}
+		}
+	};
+
 	// Determine which blocks are reachable from the entry.
 	util::BreadthFirstSearch<CFG::BasicBlock*> reachabilityCheck{{_cfg.entry}};
-	for (auto const& functionInfo: _cfg.functionInfo | ranges::views::values)
-		reachabilityCheck.verticesToTraverse.emplace_back(functionInfo.entry);
-
 	reachabilityCheck.run([&](CFG::BasicBlock* _node, auto&& _addChild) {
+		addFunctionsEntries(_node, _addChild);
 		visit(util::GenericVisitor{
 			[&](CFG::BasicBlock::Jump const& _jump) {
 				_addChild(_jump.target);
@@ -76,6 +88,16 @@ void cleanUnreachable(CFG& _cfg)
 		cxx20::erase_if(node->entries, [&](CFG::BasicBlock* entry) -> bool {
 			return !reachabilityCheck.visited.count(entry);
 		});
+
+	// Remove functions which are never referenced.
+	_cfg.functions.erase(std::remove_if(_cfg.functions.begin(), _cfg.functions.end(), [&](auto const& item) {
+		return !reachabilityCheck.visited.count(_cfg.functionInfo.at(item).entry);
+	}), _cfg.functions.end());
+
+	// Remove functionInfos which are never referenced.
+	cxx20::erase_if(_cfg.functionInfo, [&](auto const& entry) -> bool {
+		return !reachabilityCheck.visited.count(entry.second.entry);
+	});
 }
 
 /// Sets the ``recursive`` member to ``true`` for all recursive function calls.
@@ -211,6 +233,10 @@ std::unique_ptr<CFG> ControlFlowGraphBuilder::build(
 	Block const& _block
 )
 {
+	std::optional<uint8_t> eofVersion;
+	if (EVMDialect const* evmDialect = dynamic_cast<EVMDialect const*>(&_dialect))
+		eofVersion = evmDialect->eofVersion();
+
 	auto result = std::make_unique<CFG>();
 	result->entry = &result->makeBlock(debugDataOf(_block));
 
@@ -241,6 +267,8 @@ ControlFlowGraphBuilder::ControlFlowGraphBuilder(
 	m_functionSideEffects(_functionSideEffects),
 	m_dialect(_dialect)
 {
+	if (EVMDialect const* evmDialect = dynamic_cast<EVMDialect const*>(&m_dialect))
+		m_simulateFunctionsWithJumps = !evmDialect->eofVersion().has_value();
 }
 
 StackSlot ControlFlowGraphBuilder::operator()(Literal const& _literal)
@@ -357,7 +385,7 @@ void ControlFlowGraphBuilder::operator()(Switch const& _switch)
 	auto makeValueCompare = [&](Case const& _case) {
 		yul::FunctionCall const& ghostCall = m_graph.ghostCalls.emplace_back(yul::FunctionCall{
 			debugDataOf(_case),
-			yul::Identifier{{}, "eq"_yulname},
+			BuiltinName{{}, *equalityBuiltinHandle},
 			{*_case.value, Identifier{{}, ghostVariableName}}
 		});
 		BuiltinFunction const& equalityBuiltin = m_dialect.builtin(*equalityBuiltinHandle);
@@ -517,32 +545,33 @@ Stack const& ControlFlowGraphBuilder::visitFunctionCall(FunctionCall const& _cal
 
 	Stack const* output = nullptr;
 	bool canContinue = true;
-	if (std::optional<BuiltinHandle> const& builtinHandle = m_dialect.findBuiltin(_call.functionName.name.str()))
+	if (BuiltinFunction const* builtin = resolveBuiltinFunction(_call.functionName, m_dialect))
 	{
-		auto const& builtin = m_dialect.builtin(*builtinHandle);
 		Stack inputs;
 		for (auto&& [idx, arg]: _call.arguments | ranges::views::enumerate | ranges::views::reverse)
-			if (!builtin.literalArgument(idx).has_value())
+			if (!builtin->literalArgument(idx).has_value())
 				inputs.emplace_back(std::visit(*this, arg));
-		CFG::BuiltinCall builtinCall{_call.debugData, builtin, _call, inputs.size()};
+		CFG::BuiltinCall builtinCall{_call.debugData, *builtin, _call, inputs.size()};
 		output = &m_currentBlock->operations.emplace_back(CFG::Operation{
 			// input
 			std::move(inputs),
 			// output
-			ranges::views::iota(0u, builtin.numReturns) | ranges::views::transform([&](size_t _i) {
+			ranges::views::iota(0u, builtin->numReturns) | ranges::views::transform([&](size_t _i) {
 				return TemporarySlot{_call, _i};
 			}) | ranges::to<Stack>,
 			// operation
 			std::move(builtinCall)
 		}).output;
-		canContinue = builtin.controlFlowSideEffects.canContinue;
+		canContinue = builtin->controlFlowSideEffects.canContinue;
 	}
 	else
 	{
-		Scope::Function const& function = lookupFunction(_call.functionName.name);
+		yulAssert(std::holds_alternative<Identifier>(_call.functionName));
+		Scope::Function const& function = lookupFunction(std::get<Identifier>(_call.functionName).name);
 		canContinue = m_graph.functionInfo.at(&function).canContinue;
 		Stack inputs;
-		if (canContinue)
+		// For EOF (m_simulateFunctionsWithJumps == false) we do not have to put return label on stack.
+		if (m_simulateFunctionsWithJumps && canContinue)
 			inputs.emplace_back(FunctionCallReturnLabelSlot{_call});
 		for (auto const& arg: _call.arguments | ranges::views::reverse)
 			inputs.emplace_back(std::visit(*this, arg));

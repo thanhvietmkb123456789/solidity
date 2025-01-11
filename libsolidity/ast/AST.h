@@ -49,7 +49,7 @@ namespace solidity::yul
 {
 // Forward-declaration to <yul/AST.h>
 class AST;
-struct Dialect;
+class Dialect;
 }
 
 namespace solidity::frontend
@@ -193,6 +193,12 @@ public:
 	bool experimentalSolidity() const { return m_experimentalSolidity; }
 
 private:
+	void referencedSourceUnits(
+		std::set<SourceUnit const*>& _referencedSourceUnits,
+		bool _recurse,
+		std::set<SourceUnit const*>& _skipList
+	) const;
+
 	std::optional<std::string> m_licenseString;
 	std::vector<ASTPointer<ASTNode>> m_nodes;
 	bool m_experimentalSolidity = false;

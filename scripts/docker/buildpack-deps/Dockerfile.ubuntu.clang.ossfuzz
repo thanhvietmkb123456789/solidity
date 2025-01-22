@@ -24,7 +24,7 @@
 # FIXME: Workaround for Boost 1.83.0 build failure when using Clang 18 (default since https://github.com/google/oss-fuzz/pull/11714)
 # See: https://github.com/google/oss-fuzz/blob/5a9322260c4c66e7eb3e5d922b9fee6621ffd8da/projects/solidity/Dockerfile#L17C1-L18C139
 FROM gcr.io/oss-fuzz-base/base-builder@sha256:19782f7fe8092843368894dbc471ce9b30dd6a2813946071a36e8b05f5b1e27e AS base
-LABEL version="9"
+LABEL version="10"
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -130,7 +130,7 @@ RUN set -ex; \
 # EVMONE
 RUN set -ex; \
 	cd /usr/src; \
-	git clone --branch="v0.11.0" --recurse-submodules https://github.com/ethereum/evmone.git; \
+	git clone --branch="v0.13.0" --recurse-submodules https://github.com/ethereum/evmone.git; \
 	cd evmone; \
 	mkdir build; \
 	cd build; \

@@ -134,6 +134,8 @@ EVMHost::EVMHost(langutil::EVMVersion _evmVersion, evmc::VM& _vm):
 		m_evmRevision = EVMC_CANCUN;
 	else if (_evmVersion == langutil::EVMVersion::prague())
 		m_evmRevision = EVMC_PRAGUE;
+	else if (_evmVersion == langutil::EVMVersion::osaka())
+		m_evmRevision = EVMC_OSAKA;
 	else
 		assertThrow(false, Exception, "Unsupported EVM version");
 

@@ -64,6 +64,7 @@ public:
 	static EVMVersion shanghai() { return {Version::Shanghai}; }
 	static EVMVersion cancun() { return {Version::Cancun}; }
 	static EVMVersion prague() { return {Version::Prague}; }
+	static EVMVersion osaka() { return {Version::Osaka}; }
 
 	static std::vector<EVMVersion> allVersions() {
 		return {
@@ -80,6 +81,7 @@ public:
 			shanghai(),
 			cancun(),
 			prague(),
+			osaka(),
 		};
 	}
 
@@ -92,7 +94,7 @@ public:
 	}
 
 	bool isExperimental() const {
-		return m_version == Version::Prague;
+		return *this > EVMVersion{};
 	}
 
 	bool operator==(EVMVersion const& _other) const { return m_version == _other.m_version; }
@@ -115,6 +117,7 @@ public:
 		case Version::Shanghai: return "shanghai";
 		case Version::Cancun: return "cancun";
 		case Version::Prague: return "prague";
+		case Version::Osaka: return "osaka";
 		}
 		util::unreachable();
 	}
@@ -155,7 +158,8 @@ private:
 		Paris,
 		Shanghai,
 		Cancun,
-		Prague
+		Prague,
+		Osaka,
 	};
 
 	EVMVersion(Version _version): m_version(_version) {}

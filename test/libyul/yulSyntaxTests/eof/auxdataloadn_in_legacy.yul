@@ -8,7 +8,6 @@ object "a" {
 }
 
 // ====
-// EVMVersion: >=prague
 // bytecodeFormat: legacy
 // ----
 // DeclarationError 7223: (42-54): Builtin function "auxdataloadn" is only available in EOF.

@@ -76,10 +76,10 @@ void EVMObjectCompiler::run(Object const& _object, bool _optimize)
 	yulAssert(_object.analysisInfo, "No analysis info.");
 	yulAssert(_object.hasCode(), "No code.");
 	if (evmDialect->eofVersion().has_value())
-		yulAssert(
-			_optimize && (evmDialect->evmVersion() >= langutil::EVMVersion::prague()),
-			"Experimental EOF support is only available for optimized via-IR compilation and the most recent EVM version."
-		);
+	{
+		solUnimplementedAssert(_optimize, "EOF supported only for optimized compilation via IR.");
+		yulAssert(evmDialect->evmVersion().supportsEOF());
+	}
 	if (_optimize && evmDialect->evmVersion().canOverchargeGasForCall())
 	{
 		auto stackErrors = OptimizedEVMCodeTransform::run(

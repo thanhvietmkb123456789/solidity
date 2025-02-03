@@ -162,7 +162,7 @@ void CommonOptions::validate() const
 		std::cout << std::endl << "DO NOT COMMIT THE UPDATED EXPECTATIONS." << std::endl << std::endl;
 	}
 
-	assertThrow(!eofVersion().has_value() || evmVersion() >= langutil::EVMVersion::prague(), ConfigException, "EOF is unavailable before Prague fork.");
+	assertThrow(!eofVersion().has_value() || evmVersion().supportsEOF(), ConfigException, "EOF is unavailable before Osaka fork.");
 }
 
 bool CommonOptions::parse(int argc, char const* const* argv)

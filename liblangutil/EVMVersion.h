@@ -93,6 +93,8 @@ public:
 		return std::nullopt;
 	}
 
+	static EVMVersion firstWithEOF() { return {Version::Osaka}; }
+
 	bool isExperimental() const {
 		return *this > EVMVersion{};
 	}
@@ -137,6 +139,7 @@ public:
 	bool hasBlobHash() const { return *this >= cancun(); }
 	bool hasMcopy() const { return *this >= cancun(); }
 	bool supportsTransientStorage() const { return *this >= cancun(); }
+	bool supportsEOF() const { return *this >= firstWithEOF(); }
 
 	bool hasOpcode(evmasm::Instruction _opcode, std::optional<uint8_t> _eofVersion) const;
 

@@ -4,7 +4,6 @@ contract C {
     }
 }
 // ====
-// EVMVersion: >=prague
 // bytecodeFormat: >=EOFv1
 // ----
 // TypeError 2842: (56-96): Cannot set option "value" for staticcall.

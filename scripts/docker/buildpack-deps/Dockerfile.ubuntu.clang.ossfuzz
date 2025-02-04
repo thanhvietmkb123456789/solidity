@@ -21,9 +21,7 @@
 #
 # (c) 2016-2021 solidity contributors.
 #------------------------------------------------------------------------------
-# FIXME: Workaround for Boost 1.83.0 build failure when using Clang 18 (default since https://github.com/google/oss-fuzz/pull/11714)
-# See: https://github.com/google/oss-fuzz/blob/5a9322260c4c66e7eb3e5d922b9fee6621ffd8da/projects/solidity/Dockerfile#L17C1-L18C139
-FROM gcr.io/oss-fuzz-base/base-builder@sha256:19782f7fe8092843368894dbc471ce9b30dd6a2813946071a36e8b05f5b1e27e AS base
+FROM gcr.io/oss-fuzz-base/base-builder AS base
 LABEL version="10"
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -37,6 +35,8 @@ RUN apt-get update; \
 		git \
 		jq \
 		libbz2-dev \
+		libc++-18-dev \
+		libc++abi-18-dev \
 		liblzma-dev \
 		libtool \
 		lsof \
@@ -64,6 +64,10 @@ RUN apt-get update; \
 		requests \
 		tabulate;
 
+# Ensure that the expected version of Clang is installed, as the base image may update it in the future:
+# https://github.com/google/oss-fuzz/blob/5e96edbdf285045cc82dbca5600cbe994a3b1a74/infra/base-images/base-clang/checkout_build_install_llvm.sh#L57
+RUN test "$(clang -dumpversion | cut -d. -f1)" = "18" || (echo "Error: Clang 18 not found!" && exit 1)
+
 FROM base AS libraries
 
 # Boost
@@ -74,9 +78,16 @@ RUN set -ex; \
 	tar -xf boost.tar.bz2; \
 	rm boost.tar.bz2; \
 	cd boost_1_83_0; \
-	CXXFLAGS="-std=c++17 -stdlib=libc++ -pthread" LDFLAGS="-stdlib=libc++" ./bootstrap.sh --with-toolset=clang --prefix=/usr; \
-	./b2 toolset=clang cxxflags="-stdlib=libc++ -pthread" linkflags="-stdlib=libc++ -pthread" headers; \
-	./b2 toolset=clang cxxflags="-stdlib=libc++ -pthread" linkflags="-stdlib=libc++ -pthread" \
+	export CXXFLAGS="-std=c++20 -nostdinc++ -I/usr/lib/llvm-18/include/c++/v1 -pthread"; \
+	export LDFLAGS="-stdlib=libc++ -L/usr/lib/llvm-18/lib"; \
+	./bootstrap.sh --with-toolset=clang --prefix=/usr; \
+	./b2 toolset=clang \
+		cxxflags="${CXXFLAGS}" \
+		linkflags="${LDFLAGS}" \
+		headers; \
+	./b2 toolset=clang \
+		cxxflags="${CXXFLAGS}" \
+		linkflags="${LDFLAGS}" \
 		link=static variant=release runtime-link=static \
 		system filesystem unit_test_framework program_options \
 		install -j $(($(nproc)/2)); \
@@ -111,10 +122,12 @@ RUN set -ex; \
 	rm -f /opt/cvc5.zip;
 
 # OSSFUZZ: libprotobuf-mutator
+# Use commit prior to libprotobuf upgrade that broke solidity build
+# See https://github.com/google/oss-fuzz/issues/10237
 RUN set -ex; \
 	git clone https://github.com/google/libprotobuf-mutator.git /usr/src/libprotobuf-mutator; \
 	cd /usr/src/libprotobuf-mutator; \
-	git checkout 3521f47a2828da9ace403e4ecc4aece1a84feb36; \
+	git reset --hard 212a7be1eb08e7f9c79732d2aab9b2097085d936; \
 	mkdir build; \
 	cd build; \
 	cmake .. -GNinja -DLIB_PROTO_MUTATOR_DOWNLOAD_PROTOBUF=ON \
@@ -134,7 +147,9 @@ RUN set -ex; \
 	cd evmone; \
 	mkdir build; \
 	cd build; \
-	CXX=clang++ cmake -G Ninja -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="/usr" ..; \
+	CXX=clang++ cmake .. -G Ninja \
+		-DCMAKE_CXX_STANDARD=20 -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+		-DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="/usr"; \
 	ninja; \
 	ninja install/strip; \
 	rm -rf /usr/src/evmone

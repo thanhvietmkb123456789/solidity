@@ -854,7 +854,7 @@ void CHC::visitDeployment(FunctionCall const& _funCall)
 		auto const& params = constructor->parameters();
 		solAssert(args.size() == params.size(), "");
 		for (auto [arg, param]: ranges::zip_view(args, params))
-			m_context.addAssertion(expr(*arg) == m_context.variable(*param)->currentValue());
+			m_context.addAssertion(expr(*arg, param->type()) == m_context.variable(*param)->currentValue());
 	}
 	for (auto var: stateVariablesIncludingInheritedAndPrivate(*contract))
 		m_context.variable(*var)->increaseIndex();

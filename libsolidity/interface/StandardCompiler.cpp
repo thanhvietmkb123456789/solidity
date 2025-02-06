@@ -564,12 +564,12 @@ std::optional<Json> checkOutputSelection(Json const& _outputSelection)
 
 /// Validates the optimizer settings and returns them in a parsed object.
 /// On error returns the json-formatted error message.
-std::variant<OptimiserSettings, Json> parseOptimizerSettings(Json const& _jsonInput)
+std::variant<OptimiserSettings, Json> parseOptimizerSettings(std::string_view const _language, Json const& _jsonInput)
 {
 	if (auto result = checkOptimizerKeys(_jsonInput))
 		return *result;
 
-	OptimiserSettings settings = OptimiserSettings::minimal();
+	OptimiserSettings settings = _language == "EVMAssembly" ? OptimiserSettings::none() : OptimiserSettings::minimal();
 
 	if (_jsonInput.contains("enabled"))
 	{
@@ -907,12 +907,16 @@ std::variant<StandardCompiler::InputsAndSettings, Json> StandardCompiler::parseI
 
 	if (settings.contains("optimizer"))
 	{
-		auto optimiserSettings = parseOptimizerSettings(settings["optimizer"]);
+		auto optimiserSettings = parseOptimizerSettings(ret.language, settings["optimizer"]);
 		if (std::holds_alternative<Json>(optimiserSettings))
 			return std::get<Json>(std::move(optimiserSettings)); // was an error
 		else
 			ret.optimiserSettings = std::get<OptimiserSettings>(std::move(optimiserSettings));
 	}
+	else if (ret.language == "EVMAssembly")
+		ret.optimiserSettings = OptimiserSettings::none();
+	else
+		ret.optimiserSettings = OptimiserSettings::minimal();
 
 	Json const& jsonLibraries = settings.value("libraries", Json::object());
 	if (!jsonLibraries.is_object())
@@ -1236,7 +1240,14 @@ Json StandardCompiler::importEVMAssembly(StandardCompiler::InputsAndSettings _in
 	if (!isBinaryRequested(_inputsAndSettings.outputSelection))
 		return Json::object();
 
-	evmasm::EVMAssemblyStack stack(_inputsAndSettings.evmVersion, _inputsAndSettings.eofVersion);
+	evmasm::EVMAssemblyStack stack(
+		_inputsAndSettings.evmVersion,
+		_inputsAndSettings.eofVersion,
+		evmasm::Assembly::OptimiserSettings::translateSettings(
+			_inputsAndSettings.optimiserSettings,
+			_inputsAndSettings.evmVersion
+		)
+	);
 	std::string const& sourceName = _inputsAndSettings.jsonSources.begin()->first; // result of structured binding can only be used within lambda from C++20 on.
 	Json const& sourceJson = _inputsAndSettings.jsonSources.begin()->second;
 	try

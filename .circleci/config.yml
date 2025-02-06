@@ -13,20 +13,20 @@ parameters:
     default: "solbuildpackpusher/solidity-buildpack-deps@sha256:1f387a77be889f65a2a25986a5c5eccc88cec23fabe6aeaf351790751145c81e"
   ubuntu-2204-docker-image:
     type: string
-    # solbuildpackpusher/solidity-buildpack-deps:ubuntu2204-1
-    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:d61b0a4a49ac106e6747c1e8037882f1d421b537dba6c96c0a400ca105d85d4d"
+    # solbuildpackpusher/solidity-buildpack-deps:ubuntu2204-2
+    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:877fcc2589779f8245770711d10db92eda97d338dae76b6a9f27dde1a41b3aa0"
   ubuntu-2404-docker-image:
     type: string
-    # solbuildpackpusher/solidity-buildpack-deps:ubuntu2404-2
-    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:92efa8581887e5389b29d3a150112a8433a04ebf5fddf2c65ed6794b4cdf1fe3"
+    # solbuildpackpusher/solidity-buildpack-deps:ubuntu2404-3
+    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:ef6a91d7f1434c67fb9e05c6136d80f71c0ad9198479e1a88e3437680993cda4"
   ubuntu-2404-clang-docker-image:
     type: string
-    # solbuildpackpusher/solidity-buildpack-deps:ubuntu2404.clang-3
-    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:534c4eea1ba370a85cf3c106b4a30b43152ba4f695fab5e18577009a5e272146"
+    # solbuildpackpusher/solidity-buildpack-deps:ubuntu2404.clang-4
+    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:97fb2d1bc002b3624161f539a1d29543c0e6c6f4d9a61f611b9b60e99e18f377"
   ubuntu-clang-ossfuzz-docker-image:
     type: string
-    # solbuildpackpusher/solidity-buildpack-deps:ubuntu.clang.ossfuzz-9
-    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:c95b24958c92821f1d409b97fcc4930576603063f088a98e780283ee7ec5b575"
+    # solbuildpackpusher/solidity-buildpack-deps:ubuntu.clang.ossfuzz-10
+    default: "solbuildpackpusher/solidity-buildpack-deps@sha256:bd55d9a3b13c88608709ec442188c414d30f4c49f23dc2ce8b76bf8c90603fc7"
   emscripten-docker-image:
     type: string
     # NOTE: Please remember to update the `scripts/build_emscripten.sh` whenever the hash of this image changes.

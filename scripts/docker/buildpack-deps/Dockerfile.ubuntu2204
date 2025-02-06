@@ -22,7 +22,7 @@
 # (c) 2016-2025 solidity contributors.
 #------------------------------------------------------------------------------
 FROM buildpack-deps:jammy AS base
-LABEL version="1"
+LABEL version="2"
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -94,8 +94,8 @@ FROM base AS libraries
 
 # EVMONE
 RUN set -ex; \
-	wget -O /usr/src/evmone.tar.gz https://github.com/ethereum/evmone/releases/download/v0.12.0/evmone-0.12.0-linux-x86_64.tar.gz; \
-	test "$(sha256sum /usr/src/evmone.tar.gz)" = "1c7b5eba0c8c3b3b2a7a05101e2d01a13a2f84b323989a29be66285dba4136ce  /usr/src/evmone.tar.gz"; \
+	wget -O /usr/src/evmone.tar.gz https://github.com/ethereum/evmone/releases/download/v0.13.0/evmone-0.13.0-linux-x86_64.tar.gz; \
+	test "$(sha256sum /usr/src/evmone.tar.gz)" = "94efc7fa27ff94018003ad95a62c20b17a45f027d434eb642c8e345e8d4d3cad  /usr/src/evmone.tar.gz"; \
 	cd /usr; \
 	tar -xf /usr/src/evmone.tar.gz; \
 	rm -rf /usr/src/evmone.tar.gz

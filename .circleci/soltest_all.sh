@@ -32,7 +32,7 @@ REPODIR="$(realpath "$(dirname "$0")"/..)"
 source "${REPODIR}/scripts/common.sh"
 
 DEFAULT_EVM_VALUES=(constantinople petersburg istanbul berlin london paris shanghai cancun prague osaka)
-EVMS_WITH_EOF=(prague)
+EVMS_WITH_EOF=(osaka)
 
 # Deserialize the EVM_VALUES array if it was provided as argument or
 # set EVM_VALUES to the default values.

@@ -695,9 +695,8 @@ bool AsmAnalyzer::validateInstructions(std::string_view _instructionIdentifier, 
 	if (builtinHandle && defaultEVMDialect.builtin(*builtinHandle).instruction.has_value())
 		return validateInstructions(*defaultEVMDialect.builtin(*builtinHandle).instruction, _location);
 
-	solAssert(!m_eofVersion.has_value() || (*m_eofVersion == 1 && m_evmVersion == langutil::EVMVersion::prague()));
-	// TODO: Change `prague()` to `EVMVersion{}` once EOF gets deployed
-	auto const& eofDialect = EVMDialect::strictAssemblyForEVMObjects(EVMVersion::prague(), 1);
+	solAssert(!m_eofVersion.has_value() || *m_eofVersion == 1);
+	auto const& eofDialect = EVMDialect::strictAssemblyForEVMObjects(EVMVersion::firstWithEOF(), 1);
 	auto const eofBuiltinHandle = eofDialect.findBuiltin(_instructionIdentifier);
 	if (eofBuiltinHandle)
 	{

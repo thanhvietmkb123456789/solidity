@@ -146,9 +146,8 @@ void EVMVersionRestrictedTestCase::processEVMVersionSetting()
 void EVMVersionRestrictedTestCase::processBytecodeFormatSetting()
 {
 	std::optional<uint8_t> eofVersion = solidity::test::CommonOptions::get().eofVersion();
-	// TODO: Update if EOF moved to Osaka
-	// EOF only available since Prague
-	solAssert(!eofVersion.has_value() ||solidity::test::CommonOptions::get().evmVersion() >= langutil::EVMVersion::prague());
+	// EOF only available since Osaka
+	solAssert(!eofVersion.has_value() || solidity::test::CommonOptions::get().evmVersion().supportsEOF());
 
 	std::string bytecodeFormatString = m_reader.stringSetting("bytecodeFormat", "legacy,>=EOFv1");
 	if (bytecodeFormatString == "legacy,>=EOFv1" || bytecodeFormatString == ">=EOFv1,legacy")

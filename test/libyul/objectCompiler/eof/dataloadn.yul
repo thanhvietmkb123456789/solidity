@@ -9,7 +9,6 @@ object "a" {
 }
 
 // ====
-// EVMVersion: >=prague
 // bytecodeFormat: >=EOFv1
 // ----
 // Assembly:

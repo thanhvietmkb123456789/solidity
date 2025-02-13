@@ -289,6 +289,9 @@ Input Description
           // enabled an can only be explicitly disabled via 'details'.
           // WARNING: Before version 0.8.6 omitting this setting was not equivalent to setting
           // it to false and would result in all components being disabled instead.
+          // WARNING: Enabling optimizations for EVMAssembly input is allowed but not necessary under normal
+          // circumstances. It forces the opcode-based optimizer to run again and can produce bytecode that
+          // is not reproducible from metadata.
           "enabled": true,
           // Optimize for how many times you intend to run the code. Optional. Default: 200.
           // Lower values will optimize more for initial deployment cost, higher
@@ -300,12 +303,14 @@ Input Description
           // all values are provided explicitly.
           "details": {
             // Peephole optimizer (opcode-based). Optional. Default: true.
-            // NOTE: Always runs (even with optimization disabled) unless explicitly turned off here.
+            // Default for EVMAssembly input: false when optimization is not enabled.
+            // NOTE: Always runs (even with optimization disabled) except for EVMAssembly input or when explicitly turned off here.
             "peephole": true,
             // Inliner (opcode-based). Optional. Default: true when optimization is enabled.
             "inliner": false,
             // Unused JUMPDEST remover (opcode-based). Optional. Default: true.
-            // NOTE: Always runs (even with optimization disabled) unless explicitly turned off here.
+            // Default for EVMAssembly input: false when optimization is not enabled.
+            // NOTE: Always runs (even with optimization disabled) except for EVMAssembly input or when explicitly turned off here.
             "jumpdestRemover": true,
             // Literal reordering (codegen-based). Optional. Default: true when optimization is enabled.
             // Moves literals to the right of commutative binary operators during code generation, helping exploit associativity.

@@ -1345,11 +1345,11 @@ BOOST_AUTO_TEST_CASE(jumpdest_removal_subassemblies, *boost::unit_test::precondi
 	settings.runDeduplicate = true;
 	settings.runCSE = true;
 	settings.runConstantOptimiser = true;
-	settings.evmVersion = solidity::test::CommonOptions::get().evmVersion();
 	settings.expectedExecutionsPerDeployment = OptimiserSettings{}.expectedExecutionsPerDeployment;
 
-	Assembly main{settings.evmVersion, false, std::nullopt, {}};
-	AssemblyPointer sub = std::make_shared<Assembly>(settings.evmVersion, true, std::nullopt, std::string{});
+	auto const evmVersion = CommonOptions::get().evmVersion();
+	Assembly main{evmVersion, false, std::nullopt, {}};
+	AssemblyPointer sub = std::make_shared<Assembly>(evmVersion, true, std::nullopt, std::string{});
 
 	sub->append(u256(1));
 	auto t1 = sub->newTag();

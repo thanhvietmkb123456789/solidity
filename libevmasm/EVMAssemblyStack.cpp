@@ -55,6 +55,7 @@ void EVMAssemblyStack::assemble()
 	solAssert(m_evmAssembly->isCreation());
 	solAssert(!m_evmRuntimeAssembly);
 
+	m_evmAssembly->optimise(m_optimiserSettings);
 	m_object = m_evmAssembly->assemble();
 	// TODO: Check for EOF
 	solAssert(m_evmAssembly->codeSections().size() == 1);

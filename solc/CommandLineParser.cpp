@@ -264,7 +264,10 @@ OptimiserSettings CommandLineOptions::optimiserSettings() const
 	if (optimizer.optimizeEvmasm)
 		settings = OptimiserSettings::standard();
 	else
-		settings = OptimiserSettings::minimal();
+		if (input.mode == InputMode::EVMAssemblerJSON)
+			settings = OptimiserSettings::none();
+		else
+			settings = OptimiserSettings::minimal();
 
 	settings.runYulOptimiser = optimizer.optimizeYul;
 	if (optimizer.optimizeYul)
@@ -687,7 +690,10 @@ General Information)").c_str(),
 		)
 		(
 			g_strImportEvmAssemblerJson.c_str(),
-			"Import EVM assembly from JSON. Assumes input is in the format used by --asm-json."
+			("Import EVM assembly in JSON format produced by --asm-json. "
+			"WARNING: --asm-json output is already optimized according to settings stored in metadata. "
+			"Using --" + g_strOptimize + " in this mode is allowed, but not necessary under normal circumstances. "
+			"It forces the optimizer to run again and can produce bytecode that is not reproducible from metadata.").c_str()
 		)
 		(
 			g_strLSP.c_str(),
@@ -1082,6 +1088,7 @@ void CommandLineParser::processArgs()
 			g_strCombinedJson,
 			g_strInputFile,
 			g_strJsonIndent,
+			g_strOptimize,
 			g_strPrettyJson,
 			"srcmap",
 			"srcmap-runtime",

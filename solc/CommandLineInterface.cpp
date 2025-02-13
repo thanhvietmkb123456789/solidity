@@ -893,8 +893,7 @@ void CommandLineInterface::assembleFromEVMAssemblyJSON()
 		m_options.output.evmVersion,
 		m_options.output.eofVersion,
 		evmasm::Assembly::OptimiserSettings::translateSettings(
-			m_options.optimiserSettings(),
-			m_options.output.evmVersion
+			m_options.optimiserSettings()
 		)
 	);
 	try

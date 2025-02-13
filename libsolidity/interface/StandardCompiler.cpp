@@ -1244,8 +1244,7 @@ Json StandardCompiler::importEVMAssembly(StandardCompiler::InputsAndSettings _in
 		_inputsAndSettings.evmVersion,
 		_inputsAndSettings.eofVersion,
 		evmasm::Assembly::OptimiserSettings::translateSettings(
-			_inputsAndSettings.optimiserSettings,
-			_inputsAndSettings.evmVersion
+			_inputsAndSettings.optimiserSettings
 		)
 	);
 	std::string const& sourceName = _inputsAndSettings.jsonSources.begin()->first; // result of structured binding can only be used within lambda from C++20 on.

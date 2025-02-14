@@ -183,6 +183,7 @@ at each version. Backward compatibility is not guaranteed between each version.
    - Opcodes ``tstore`` and ``tload`` are available in assembly (see `EIP-1153 <https://eips.ethereum.org/EIPS/eip-1153>`_).
 - ``prague`` (**experimental**)
 - ``osaka`` (**experimental**)
+   - Experimental compilation to EOF is available starting from this version. (`EIP-7692 <https://eips.ethereum.org/EIPS/eip-7692>`_)
 
 .. index:: ! standard JSON, ! --standard-json
 .. _compiler-api:

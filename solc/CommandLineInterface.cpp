@@ -118,7 +118,6 @@ std::ostream& CommandLineInterface::serr(bool _markAsUsed)
 static std::string const g_stdinFileName = "<stdin>";
 static std::string const g_strAbi = "abi";
 static std::string const g_strAsm = "asm";
-static std::string const g_strAst = "ast";
 static std::string const g_strBinary = "bin";
 static std::string const g_strBinaryRuntime = "bin-runtime";
 static std::string const g_strContracts = "contracts";
@@ -151,6 +150,8 @@ static bool needsHumanTargetedStdout(CommandLineOptions const& _options)
 		_options.compiler.outputs.yulCFGJson ||
 		_options.compiler.outputs.binary ||
 		_options.compiler.outputs.binaryRuntime ||
+		_options.compiler.outputs.ethdebug ||
+		_options.compiler.outputs.ethdebugRuntime ||
 		_options.compiler.outputs.metadata ||
 		_options.compiler.outputs.natspecUser ||
 		_options.compiler.outputs.natspecDev ||
@@ -551,6 +552,44 @@ void CommandLineInterface::handleGasEstimation(std::string const& _contract)
 	}
 }
 
+void CommandLineInterface::handleEthdebug()
+{
+	if (m_options.compiler.outputs.ethdebug || m_options.compiler.outputs.ethdebugRuntime)
+	{
+		std::string ethdebug{jsonPrint(removeNullMembers(m_compiler->ethdebug()), m_options.formatting.json)};
+		if (!m_options.output.dir.empty())
+			createFile("ethdebug.json", ethdebug);
+		else
+			sout() << "======= Debug Data (ethdebug/format/info/resources) =======" << std::endl << ethdebug << std::endl;
+	}
+}
+
+void CommandLineInterface::handleEthdebug(std::string const& _contract)
+{
+	solAssert(CompilerInputModes.count(m_options.input.mode) == 1);
+
+	if (!(m_options.compiler.outputs.ethdebug || m_options.compiler.outputs.ethdebugRuntime))
+		return;
+
+	if (m_options.compiler.outputs.ethdebug)
+	{
+		std::string ethdebug{jsonPrint(removeNullMembers(m_compiler->ethdebug(_contract)), m_options.formatting.json)};
+		if (!m_options.output.dir.empty())
+			createFile(m_compiler->filesystemFriendlyName(_contract) + "_ethdebug.json", ethdebug);
+		else
+			sout() << "Debug Data (ethdebug/format/program):" << std::endl << ethdebug << std::endl;
+	}
+
+	if (m_options.compiler.outputs.ethdebugRuntime)
+	{
+		std::string ethdebugRuntime{jsonPrint(removeNullMembers(m_compiler->ethdebugRuntime(_contract)), m_options.formatting.json)};
+		if (!m_options.output.dir.empty())
+			createFile(m_compiler->filesystemFriendlyName(_contract) + "_ethdebug-runtime.json", ethdebugRuntime);
+		else
+			sout() << "Debug Data of the runtime part (ethdebug/format/program):" << std::endl << ethdebugRuntime << std::endl;
+	}
+}
+
 void CommandLineInterface::readInputFiles()
 {
 	solAssert(!m_standardJsonInput.has_value());
@@ -850,7 +889,13 @@ void CommandLineInterface::assembleFromEVMAssemblyJSON()
 	solAssert(m_fileReader.sourceUnits().size() == 1);
 	auto&& [sourceUnitName, source] = *m_fileReader.sourceUnits().begin();
 
-	auto evmAssemblyStack = std::make_unique<evmasm::EVMAssemblyStack>(m_options.output.evmVersion, m_options.output.eofVersion);
+	auto evmAssemblyStack = std::make_unique<evmasm::EVMAssemblyStack>(
+		m_options.output.evmVersion,
+		m_options.output.eofVersion,
+		evmasm::Assembly::OptimiserSettings::translateSettings(
+			m_options.optimiserSettings()
+		)
+	);
 	try
 	{
 		evmAssemblyStack->parseAndAnalyze(sourceUnitName, source);
@@ -912,6 +957,8 @@ void CommandLineInterface::compile()
 			m_options.compiler.outputs.opcodes ||
 			m_options.compiler.outputs.binary ||
 			m_options.compiler.outputs.binaryRuntime ||
+			m_options.compiler.outputs.ethdebug ||
+			m_options.compiler.outputs.ethdebugRuntime ||
 			(m_options.compiler.combinedJsonRequests && (
 				m_options.compiler.combinedJsonRequests->binary ||
 				m_options.compiler.combinedJsonRequests->binaryRuntime ||
@@ -1290,6 +1337,17 @@ void CommandLineInterface::assembleYul(yul::YulStack::Language _language, yul::Y
 		solThrow(CommandLineExecutionError, "");
 	}
 
+	if (m_options.compiler.outputs.ethdebug)
+	{
+		Json ethdebugObject = Json::object();
+		ethdebugObject["sources"] = m_fileReader.sourceUnits() | ranges::views::keys;
+		sout() << "======= Debug Data (ethdebug/format/info/resources) =======" << std::endl;
+		sout() << util::jsonPrint(
+				ethdebugObject,
+				m_options.formatting.json
+		) << std::endl;
+	}
+
 	for (auto const& [sourceUnitName, yulSource]: m_fileReader.sourceUnits())
 	{
 		solAssert(_targetMachine == yul::YulStack::Machine::EVM);
@@ -1345,6 +1403,14 @@ void CommandLineInterface::assembleYul(yul::YulStack::Language _language, yul::Y
 				m_options.formatting.json
 			) << std::endl;
 		}
+		if (m_options.compiler.outputs.ethdebug)
+		{
+			sout() << std::endl << "Debug Data (ethdebug/format/program):" << std::endl;
+			sout() << util::jsonPrint(
+				object.ethdebug,
+				m_options.formatting.json
+			) << std::endl;
+		}
 	}
 }
 
@@ -1356,6 +1422,8 @@ void CommandLineInterface::outputCompilationResults()
 
 	// do we need AST output?
 	handleAst();
+
+	handleEthdebug();
 
 	CompilerOutputs astOutputSelection;
 	astOutputSelection.astCompactJson = true;
@@ -1388,6 +1456,7 @@ void CommandLineInterface::outputCompilationResults()
 			handleTransientStorageLayout(contract);
 			handleNatspec(true, contract);
 			handleNatspec(false, contract);
+			handleEthdebug(contract);
 		} // end of contracts iteration
 	}
 

@@ -209,7 +209,7 @@ Local Solidity variables are available for assignments, for example:
     ``assembly { signextend(<num_bytes_of_x_minus_one>, x) }``
 
 
-Since Solidity 0.6.0, the name of a inline assembly variable may not
+Since Solidity 0.6.0, the name of an inline assembly variable may not
 shadow any declaration visible in the scope of the inline assembly block
 (including variable, contract and function declarations).
 

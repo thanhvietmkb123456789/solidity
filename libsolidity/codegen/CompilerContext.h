@@ -284,7 +284,7 @@ public:
 	void appendToAuxiliaryData(bytes const& _data) { m_asm->appendToAuxiliaryData(_data); }
 
 	/// Run optimisation step.
-	void optimise(OptimiserSettings const& _settings) { m_asm->optimise(evmasm::Assembly::OptimiserSettings::translateSettings(_settings, m_evmVersion)); }
+	void optimise(OptimiserSettings const& _settings) { m_asm->optimise(evmasm::Assembly::OptimiserSettings::translateSettings(_settings)); }
 
 	/// @returns the runtime context if in creation mode and runtime context is set, nullptr otherwise.
 	CompilerContext* runtimeContext() const { return m_runtimeContext; }

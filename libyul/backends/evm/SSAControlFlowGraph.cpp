@@ -77,6 +77,25 @@ private:
 		);
 	}
 
+	static std::string escape(std::string_view const str)
+	{
+		using namespace std::literals;
+		static constexpr auto replacements = std::array{std::make_tuple('$', "_d_")};
+		std::stringstream ss;
+		for (auto const c: str)
+		{
+			auto const it = std::find_if(replacements.begin(), replacements.end(), [c](auto const& replacement)
+			{
+				return std::get<0>(replacement) == c;
+			});
+			if (it != replacements.end())
+				ss << std::get<1>(*it);
+			else
+				ss << c;
+		}
+		return ss.str();
+	}
+
 	std::string formatBlockHandle(SSACFG::BlockId const& _id) const
 	{
 		return fmt::format("Block{}_{}", m_functionIndex, _id.value);
@@ -157,7 +176,7 @@ private:
 					);
 				m_result << fmt::format(
 					"{}({})\\l\\\n",
-					label,
+					escape(label),
 					fmt::join(operation.inputs | ranges::views::transform(valueToString), ", ")
 				);
 			}
@@ -247,15 +266,15 @@ private:
 
 	void printFunction(Scope::Function const& _fun)
 	{
-		static auto constexpr returnsTransform = [](auto const& functionReturnValue) { return functionReturnValue.get().name.str(); };
+		static auto constexpr returnsTransform = [](auto const& functionReturnValue) { return escape(functionReturnValue.get().name.str()); };
 		static auto constexpr argsTransform = [](auto const& arg) { return fmt::format("v{}", std::get<1>(arg).value); };
-		m_result << "FunctionEntry_" << _fun.name.str() << "_" << m_cfg.entry.value << " [label=\"";
+		m_result << "FunctionEntry_" << escape(_fun.name.str()) << "_" << m_cfg.entry.value << " [label=\"";
 		if (!m_cfg.returns.empty())
-			m_result << fmt::format("function {0}:\n {1} := {0}({2})", _fun.name.str(), fmt::join(m_cfg.returns | ranges::views::transform(returnsTransform), ", "), fmt::join(m_cfg.arguments | ranges::views::transform(argsTransform), ", "));
+			m_result << fmt::format("function {0}:\n {1} := {0}({2})", escape(_fun.name.str()), fmt::join(m_cfg.returns | ranges::views::transform(returnsTransform), ", "), fmt::join(m_cfg.arguments | ranges::views::transform(argsTransform), ", "));
 		else
-			m_result << fmt::format("function {0}:\n {0}({1})", _fun.name.str(), fmt::join(m_cfg.arguments | ranges::views::transform(argsTransform), ", "));
+			m_result << fmt::format("function {0}:\n {0}({1})", escape(_fun.name.str()), fmt::join(m_cfg.arguments | ranges::views::transform(argsTransform), ", "));
 		m_result << "\"];\n";
-		m_result << "FunctionEntry_" << _fun.name.str() << "_" << m_cfg.entry.value << " -> Block" << m_functionIndex << "_" << m_cfg.entry.value << ";\n";
+		m_result << "FunctionEntry_" << escape(_fun.name.str()) << "_" << m_cfg.entry.value << " -> Block" << m_functionIndex << "_" << m_cfg.entry.value << ";\n";
 		printBlock(m_cfg.entry);
 	}
 

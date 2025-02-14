@@ -641,6 +641,7 @@ void CHC::endVisit(FunctionCall const& _funCall)
 	case FunctionType::Kind::ECRecover:
 	case FunctionType::Kind::SHA256:
 	case FunctionType::Kind::RIPEMD160:
+	case FunctionType::Kind::BlobHash:
 	case FunctionType::Kind::BlockHash:
 	case FunctionType::Kind::AddMod:
 	case FunctionType::Kind::MulMod:
@@ -853,7 +854,7 @@ void CHC::visitDeployment(FunctionCall const& _funCall)
 		auto const& params = constructor->parameters();
 		solAssert(args.size() == params.size(), "");
 		for (auto [arg, param]: ranges::zip_view(args, params))
-			m_context.addAssertion(expr(*arg) == m_context.variable(*param)->currentValue());
+			m_context.addAssertion(expr(*arg, param->type()) == m_context.variable(*param)->currentValue());
 	}
 	for (auto var: stateVariablesIncludingInheritedAndPrivate(*contract))
 		m_context.variable(*var)->increaseIndex();
@@ -925,17 +926,6 @@ void CHC::internalFunctionCall(FunctionCall const& _funCall)
 
 	Expression const* calledExpr = &_funCall.expression();
 	auto funType = dynamic_cast<FunctionType const*>(calledExpr->annotation().type);
-
-	auto contractAddressValue = [this](FunctionCall const& _f) {
-		auto [callExpr, callOptions] = functionCallExpression(_f);
-
-		FunctionType const& funType = dynamic_cast<FunctionType const&>(*callExpr->annotation().type);
-		if (funType.kind() == FunctionType::Kind::Internal)
-			return state().thisAddress();
-		if (MemberAccess const* callBase = dynamic_cast<MemberAccess const*>(callExpr))
-			return expr(callBase->expression());
-		solAssert(false, "Unreachable!");
-	};
 
 	std::vector<Expression const*> arguments;
 	for (auto& arg: _funCall.sortedArguments())
@@ -1336,7 +1326,7 @@ void CHC::clearIndices(ContractDefinition const* _contract, FunctionDefinition c
 
 void CHC::setCurrentBlock(Predicate const& _block)
 {
-	if (m_context.solverStackHeigh() > 0)
+	if (m_context.solverStackHeight() > 0)
 		m_context.popSolver();
 	solAssert(m_currentContract, "");
 	clearIndices(m_currentContract, m_currentFunction);
@@ -2179,7 +2169,13 @@ void CHC::checkAndReportTarget(
 	}
 	else if (result == CheckResult::SATISFIABLE)
 	{
-		solAssert(!_satMsg.empty(), "");
+		solAssert(!_satMsg.empty());
+		if (auto it = m_safeTargets.find(_target.errorNode); it != m_safeTargets.end())
+		{
+			std::erase_if(it->second, [&](auto const& target) { return target.type == _target.type; });
+			if (it->second.empty())
+				m_safeTargets.erase(it);
+		}
 		auto cex = generateCounterexample(model, error().name);
 		if (cex)
 			m_unsafeTargets[_target.errorNode][_target.type] = {

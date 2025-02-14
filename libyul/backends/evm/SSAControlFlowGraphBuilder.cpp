@@ -29,7 +29,6 @@
 #include <libsolutil/Algorithms.h>
 #include <libsolutil/StringUtils.h>
 #include <libsolutil/Visitor.h>
-#include <libsolutil/cxx20.h>
 
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/drop_last.hpp>
@@ -197,7 +196,7 @@ void SSAControlFlowGraphBuilder::cleanUnreachable()
 				it = block.entries.erase(it);
 		for (auto phi: block.phis)
 			if (auto* phiInfo = std::get_if<SSACFG::PhiValue>(&m_graph.valueInfo(phi)))
-				cxx20::erase_if(phiInfo->arguments, [&](SSACFG::ValueId _arg) {
+				std::erase_if(phiInfo->arguments, [&](SSACFG::ValueId _arg) {
 					if (isUnreachableValue(_arg))
 					{
 						maybeTrivialPhi.insert(phi);

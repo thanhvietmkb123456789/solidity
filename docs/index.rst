@@ -29,7 +29,7 @@ read our :doc:`contributors guide <contributing>` for more details.
 .. Hint::
 
   You can download this documentation as PDF, HTML or Epub
-  by clicking on the versions flyout menu in the bottom-left corner and selecting the preferred download format.
+  by clicking on the versions flyout menu in the bottom-right corner and selecting the preferred download format.
 
 
 Getting Started

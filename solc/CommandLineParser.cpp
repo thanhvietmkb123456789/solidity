@@ -91,7 +91,6 @@ static std::string const g_strOutputDir = "output-dir";
 static std::string const g_strOverwrite = "overwrite";
 static std::string const g_strRevertStrings = "revert-strings";
 static std::string const g_strStopAfter = "stop-after";
-static std::string const g_strParsing = "parsing";
 
 /// Possible arguments to for --revert-strings
 static std::set<std::string> const g_revertStringsArgs
@@ -102,8 +101,6 @@ static std::set<std::string> const g_revertStringsArgs
 	revertStringsToString(RevertStrings::VerboseDebug)
 };
 
-static std::string const g_strSources = "sources";
-static std::string const g_strSourceList = "sourceList";
 static std::string const g_strStandardJSON = "standard-json";
 static std::string const g_strStrictAssembly = "strict-assembly";
 static std::string const g_strSwarm = "swarm";
@@ -267,7 +264,10 @@ OptimiserSettings CommandLineOptions::optimiserSettings() const
 	if (optimizer.optimizeEvmasm)
 		settings = OptimiserSettings::standard();
 	else
-		settings = OptimiserSettings::minimal();
+		if (input.mode == InputMode::EVMAssemblerJSON)
+			settings = OptimiserSettings::none();
+		else
+			settings = OptimiserSettings::minimal();
 
 	settings.runYulOptimiser = optimizer.optimizeYul;
 	if (optimizer.optimizeYul)
@@ -474,6 +474,7 @@ void CommandLineParser::parseOutputSelection()
 			CompilerOutputs::componentName(&CompilerOutputs::astCompactJson),
 			CompilerOutputs::componentName(&CompilerOutputs::asmJson),
 			CompilerOutputs::componentName(&CompilerOutputs::yulCFGJson),
+			CompilerOutputs::componentName(&CompilerOutputs::ethdebug),
 		};
 		static std::set<std::string> const evmAssemblyJsonImportModeOutputs = {
 			CompilerOutputs::componentName(&CompilerOutputs::asm_),
@@ -651,7 +652,7 @@ General Information)").c_str(),
 			po::value<std::string>()->default_value(util::toString(DebugInfoSelection::Default())),
 			("Debug info components to be included in the produced EVM assembly and Yul code. "
 			"Value can be all, none or a comma-separated list containing one or more of the "
-			"following components: " + util::joinHumanReadable(DebugInfoSelection::componentMap() | ranges::views::keys) + ".").c_str()
+			"following components: " + util::joinHumanReadable(DebugInfoSelection::Default().selectedNames()) + ".").c_str()
 		)
 		(
 			g_strStopAfter.c_str(),
@@ -689,7 +690,10 @@ General Information)").c_str(),
 		)
 		(
 			g_strImportEvmAssemblerJson.c_str(),
-			"Import EVM assembly from JSON. Assumes input is in the format used by --asm-json."
+			("Import EVM assembly in JSON format produced by --asm-json. "
+			"WARNING: --asm-json output is already optimized according to settings stored in metadata. "
+			"Using --" + g_strOptimize + " in this mode is allowed, but not necessary under normal circumstances. "
+			"It forces the optimizer to run again and can produce bytecode that is not reproducible from metadata.").c_str()
 		)
 		(
 			g_strLSP.c_str(),
@@ -773,9 +777,23 @@ General Information)").c_str(),
 		(CompilerOutputs::componentName(&CompilerOutputs::transientStorageLayout).c_str(), "Slots, offsets and types of the contract's state variables located in transient storage.")
 	;
 	if (!_forHelp) // Note: We intentionally keep this undocumented for now.
+	{
 		outputComponents.add_options()
-			(CompilerOutputs::componentName(&CompilerOutputs::yulCFGJson).c_str(), "Control Flow Graph (CFG) of Yul code in JSON format.")
-		;
+		(
+			CompilerOutputs::componentName(&CompilerOutputs::yulCFGJson).c_str(),
+			"Control Flow Graph (CFG) of Yul code in JSON format."
+		);
+		outputComponents.add_options()
+		(
+			CompilerOutputs::componentName(&CompilerOutputs::ethdebug).c_str(),
+			"Ethdebug output of all contracts."
+		);
+		outputComponents.add_options()
+		(
+			CompilerOutputs::componentName(&CompilerOutputs::ethdebugRuntime).c_str(),
+			"Ethdebug output of the runtime part of all contracts."
+		);
+	}
 	desc.add(outputComponents);
 
 	po::options_description extraOutput("Extra Output");
@@ -1070,6 +1088,7 @@ void CommandLineParser::processArgs()
 			g_strCombinedJson,
 			g_strInputFile,
 			g_strJsonIndent,
+			g_strOptimize,
 			g_strPrettyJson,
 			"srcmap",
 			"srcmap-runtime",
@@ -1321,6 +1340,14 @@ void CommandLineParser::processArgs()
 				CommandLineValidationError,
 				"Optimizer can only be used for strict assembly. Use --"  + g_strStrictAssembly + "."
 			);
+
+		if (m_options.compiler.outputs.ethdebug || m_options.compiler.outputs.ethdebugRuntime)
+			if (!m_options.output.debugInfoSelection.has_value())
+			{
+				m_options.output.debugInfoSelection = DebugInfoSelection::Default();
+				m_options.output.debugInfoSelection->enable("ethdebug");
+			}
+
 		return;
 	}
 	else if (countEnabledOptions({g_strYulDialect, g_strMachine}) >= 1)
@@ -1460,6 +1487,64 @@ void CommandLineParser::processArgs()
 		m_options.input.mode == InputMode::CompilerWithASTImport ||
 		m_options.input.mode == InputMode::EVMAssemblerJSON
 	);
+
+	bool incompatibleEthdebugOutputs =
+		m_options.compiler.outputs.asmJson || m_options.compiler.outputs.irAstJson || m_options.compiler.outputs.irOptimizedAstJson ||
+		m_options.compiler.outputs.irOptimized || m_options.optimizer.optimizeYul || m_options.optimizer.optimizeEvmasm;
+
+	bool incompatibleEthdebugInputs = m_options.input.mode != InputMode::Compiler;
+
+	static std::string enableEthdebugMessage =
+		"--" + CompilerOutputs::componentName(&CompilerOutputs::ethdebug) + " / --" + CompilerOutputs::componentName(&CompilerOutputs::ethdebugRuntime);
+
+	static std::string incompatibleEthdebugOptimizerMessage =
+		"--" + g_strOptimize + " / --" + CompilerOutputs::componentName(&CompilerOutputs::irOptimized);
+
+	static std::string enableIrMessage = "--" + CompilerOutputs::componentName(&CompilerOutputs::ir);
+
+	if (m_options.compiler.outputs.ethdebug || m_options.compiler.outputs.ethdebugRuntime)
+	{
+		if (!m_options.output.viaIR)
+			solThrow(
+				CommandLineValidationError,
+				enableEthdebugMessage + " output can only be selected, if --via-ir was specified."
+			);
+
+		if (incompatibleEthdebugOutputs)
+			solThrow(
+				CommandLineValidationError,
+				enableEthdebugMessage + " output can only be used with " + enableIrMessage + ". Optimization is not yet supported with ethdebug, e.g. no support for " + incompatibleEthdebugOptimizerMessage + " yet."
+			);
+
+		if (!m_options.output.debugInfoSelection.has_value())
+		{
+			m_options.output.debugInfoSelection = DebugInfoSelection::Default();
+			m_options.output.debugInfoSelection->enable("ethdebug");
+		}
+		else
+		{
+			if (!m_options.output.debugInfoSelection->ethdebug)
+				solThrow(
+					CommandLineValidationError,
+					"--debug-info must contain ethdebug, when compiling with " + enableEthdebugMessage + "."
+				);
+		}
+	}
+
+	if (
+		m_options.output.debugInfoSelection.has_value() && m_options.output.debugInfoSelection->ethdebug &&
+		(!(m_options.compiler.outputs.ir || m_options.compiler.outputs.ethdebug || m_options.compiler.outputs.ethdebugRuntime) || incompatibleEthdebugOutputs)
+	)
+		solThrow(
+			CommandLineValidationError,
+			"--debug-info ethdebug can only be used with " + enableIrMessage + " and/or " + enableEthdebugMessage + ". Optimization is not yet supported with ethdebug, e.g. no support for " + incompatibleEthdebugOptimizerMessage + " yet."
+		);
+
+	if (m_options.output.debugInfoSelection.has_value() && m_options.output.debugInfoSelection->ethdebug && incompatibleEthdebugInputs)
+		solThrow(
+			CommandLineValidationError,
+			"Invalid input mode for --debug-info ethdebug / --ethdebug / --ethdebug-runtime."
+		);
 }
 
 void CommandLineParser::parseCombinedJsonOption()

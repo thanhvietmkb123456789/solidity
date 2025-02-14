@@ -47,6 +47,7 @@ private:
 	void runDagDfs();
 	void runLoopTreeDfs(size_t _loopHeader);
 	void fillOperationsLiveOut();
+	std::set<SSACFG::ValueId> blockExitValues(SSACFG::BlockId const& _blockId) const;
 
 	SSACFG const& m_cfg;
 	ForwardSSACFGTopologicalSort m_topologicalSort;

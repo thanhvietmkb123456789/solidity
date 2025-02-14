@@ -94,7 +94,8 @@ At least a day before the release:
        **SERIOUSLY: DO NOT PROCEED EARLIER!!!**
  - [ ] *After* the package with the static build is *published*, use it to create packages for older Ubuntu versions.
        Copy the static package to the [``~ethereum/ethereum`` PPA](https://launchpad.net/~ethereum/+archive/ubuntu/ethereum)
-       for the destination series ``Trusty``, ``Xenial`` and ``Bionic`` while selecting ``Copy existing binaries``.
+       for the destination series ``Trusty``, ``Xenial``, ``Bionic``, and ``Focal``
+       while selecting ``Copy existing binaries``.
 
 ### Release solc-js
  - [ ] Wait until solc-bin was properly deployed. You can test this via remix - a test run through remix is advisable anyway.

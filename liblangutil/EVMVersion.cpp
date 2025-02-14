@@ -28,8 +28,8 @@ using namespace solidity::langutil;
 
 bool EVMVersion::hasOpcode(Instruction _opcode, std::optional<uint8_t> _eofVersion) const
 {
-	// EOF version can be only defined since prague
-	assert(!_eofVersion.has_value() || this->m_version >= prague());
+	// EOF version can be only defined since osaka
+	assert(!_eofVersion.has_value() || *this >= EVMVersion::firstWithEOF());
 
 	switch (_opcode)
 	{

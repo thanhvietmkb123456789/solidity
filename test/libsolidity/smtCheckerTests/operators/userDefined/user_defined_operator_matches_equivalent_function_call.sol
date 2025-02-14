@@ -52,11 +52,9 @@ contract C {
     }
 }
 // ====
-// SMTEngine: all
-// SMTIgnoreOS: macos
+// SMTEngine: chc
 // SMTTargets: assert
 // ----
 // Warning 6328: (2209-2235): CHC: Assertion violation might happen here.
 // Warning 6328: (2245-2271): CHC: Assertion violation might happen here.
 // Info 1391: CHC: 14 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
-// Info 6002: BMC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

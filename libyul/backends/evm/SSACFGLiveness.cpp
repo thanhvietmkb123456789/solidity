@@ -37,6 +37,29 @@ constexpr auto literalsFilter(SSACFG const& _cfg)
 }
 }
 
+std::set<SSACFG::ValueId> SSACFGLiveness::blockExitValues(SSACFG::BlockId const& _blockId) const
+{
+	std::set<SSACFG::ValueId> result;
+	util::GenericVisitor exitVisitor {
+		[](SSACFG::BasicBlock::MainExit const&) {},
+		[&](SSACFG::BasicBlock::FunctionReturn const& _functionReturn) {
+			result += _functionReturn.returnValues | ranges::views::filter(literalsFilter(m_cfg));
+		},
+		[&](SSACFG::BasicBlock::JumpTable const& _jt) {
+			if (literalsFilter(m_cfg)(_jt.value))
+				result.emplace(_jt.value);
+		},
+		[](SSACFG::BasicBlock::Jump const&) {},
+		[&](SSACFG::BasicBlock::ConditionalJump const& _conditionalJump) {
+			if (literalsFilter(m_cfg)(_conditionalJump.condition))
+				result.emplace(_conditionalJump.condition);
+		},
+		[](SSACFG::BasicBlock::Terminated const&) {}
+	};
+	std::visit(exitVisitor, m_cfg.block(_blockId).exit);
+	return result;
+}
+
 SSACFGLiveness::SSACFGLiveness(SSACFG const& _cfg):
 	m_cfg(_cfg),
 	m_topologicalSort(_cfg),
@@ -70,12 +93,7 @@ void SSACFGLiveness::runDagDfs()
 				{
 					auto const& info = m_cfg.valueInfo(phi);
 					yulAssert(std::holds_alternative<SSACFG::PhiValue>(info), "value info of phi wasn't PhiValue");
-					auto const& entries = m_cfg.block(std::get<SSACFG::PhiValue>(info).block).entries;
-					// this is getting the argument index of the phi function corresponding to the path going
-					// through "blockId", ie, the currently handled block
-					auto const it = entries.find(blockId);
-					yulAssert(it != entries.end());
-					auto const argIndex = static_cast<size_t>(std::distance(entries.begin(), it));
+					auto const argIndex = m_cfg.phiArgumentIndex(blockId, _successor);
 					yulAssert(argIndex < std::get<SSACFG::PhiValue>(info).arguments.size());
 					auto const arg = std::get<SSACFG::PhiValue>(info).arguments.at(argIndex);
 					if (!std::holds_alternative<SSACFG::LiteralValue>(m_cfg.valueInfo(arg)))
@@ -89,23 +107,10 @@ void SSACFGLiveness::runDagDfs()
 				if (!m_topologicalSort.backEdge(blockId, _successor))
 					live += m_liveIns[_successor.value] - m_cfg.block(_successor).phis;
 			});
-		util::GenericVisitor exitVisitor {
-			[](SSACFG::BasicBlock::MainExit const&) {},
-			[&](SSACFG::BasicBlock::FunctionReturn const& _functionReturn) {
-				live += _functionReturn.returnValues | ranges::views::filter(literalsFilter(m_cfg));
-			},
-			[&](SSACFG::BasicBlock::JumpTable const& _jt) {
-				if (literalsFilter(m_cfg)(_jt.value))
-					live.emplace(_jt.value);
-			},
-			[](SSACFG::BasicBlock::Jump const&) {},
-			[&](SSACFG::BasicBlock::ConditionalJump const& _conditionalJump) {
-				if (literalsFilter(m_cfg)(_conditionalJump.condition))
-					live.emplace(_conditionalJump.condition);
-			},
-			[](SSACFG::BasicBlock::Terminated const&) {}
-		};
-		std::visit(exitVisitor, block.exit);
+
+		if (std::holds_alternative<SSACFG::BasicBlock::FunctionReturn>(block.exit))
+			live += std::get<SSACFG::BasicBlock::FunctionReturn>(block.exit).returnValues
+					| ranges::views::filter(literalsFilter(m_cfg));
 
 		// clean out unreachables
 		live = live | ranges::views::filter([&](auto const& valueId) { return !std::holds_alternative<SSACFG::UnreachableValue>(m_cfg.valueInfo(valueId)); }) | ranges::to<std::set>;
@@ -114,12 +119,17 @@ void SSACFGLiveness::runDagDfs()
 		m_liveOuts[blockId.value] = live;
 
 		// for each program point p in B, backwards, do:
-		for (auto const& op: block.operations | ranges::views::reverse)
 		{
-			// remove variables defined at p from live
-			live -= op.outputs | ranges::views::filter(literalsFilter(m_cfg)) | ranges::to<std::vector>;
-			// add uses at p to live
-			live += op.inputs | ranges::views::filter(literalsFilter(m_cfg)) | ranges::to<std::vector>;
+			// add value ids to the live set that are used in exit blocks
+			live += blockExitValues(blockId);
+
+			for (auto const& op: block.operations | ranges::views::reverse)
+			{
+				// remove variables defined at p from live
+				live -= op.outputs | ranges::views::filter(literalsFilter(m_cfg)) | ranges::to<std::vector>;
+				// add uses at p to live
+				live += op.inputs | ranges::views::filter(literalsFilter(m_cfg)) | ranges::to<std::vector>;
+			}
 		}
 
 		// livein(b) <- live \cup PhiDefs(B)
@@ -155,12 +165,13 @@ void SSACFGLiveness::fillOperationsLiveOut()
 {
 	for (size_t blockIdValue = 0; blockIdValue < m_cfg.numBlocks(); ++blockIdValue)
 	{
-		auto const& operations = m_cfg.block(SSACFG::BlockId{blockIdValue}).operations;
+		SSACFG::BlockId const blockId{blockIdValue};
+		auto const& operations = m_cfg.block(blockId).operations;
 		auto& liveOuts = m_operationLiveOuts[blockIdValue];
 		liveOuts.resize(operations.size());
 		if (!operations.empty())
 		{
-			auto live = m_liveOuts[blockIdValue];
+			auto live = m_liveOuts[blockIdValue] + blockExitValues(blockId);
 			auto rit = liveOuts.rbegin();
 			for (auto const& op: operations | ranges::views::reverse)
 			{

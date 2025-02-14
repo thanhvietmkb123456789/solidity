@@ -63,7 +63,7 @@ YulStack yul::test::parseYul(
 		_optimiserSettings.has_value() ?
 			*_optimiserSettings :
 			(CommonOptions::get().optimize ? OptimiserSettings::standard() : OptimiserSettings::minimal()),
-		DebugInfoSelection::All()
+		DebugInfoSelection::AllExceptExperimental()
 	);
 	bool successful = yulStack.parseAndAnalyze(_sourceUnitName, _source);
 	if (!successful)

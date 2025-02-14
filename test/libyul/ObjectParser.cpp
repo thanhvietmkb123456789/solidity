@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(to_string)
 		solidity::test::CommonOptions::get().eofVersion(),
 		YulStack::Language::StrictAssembly,
 		solidity::frontend::OptimiserSettings::none(),
-		DebugInfoSelection::All()
+		DebugInfoSelection::AllExceptExperimental()
 	);
 	BOOST_REQUIRE(asmStack.parseAndAnalyze("source", code));
 	BOOST_CHECK_EQUAL(asmStack.print(), expectation);

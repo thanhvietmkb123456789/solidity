@@ -81,6 +81,7 @@ void UnusedPruner::operator()(Block& _block)
 				[&](NameWithDebugData const& _typedName) { return used(_typedName.name); }
 			))
 			{
+				std::optional<BuiltinHandle> discardFunctionHandle = m_dialect.discardFunctionHandle();
 				if (!varDecl.value)
 					statement = Block{std::move(varDecl.debugData), {}};
 				else if (
@@ -91,10 +92,10 @@ void UnusedPruner::operator()(Block& _block)
 					subtractReferences(ReferencesCounter::countReferences(*varDecl.value));
 					statement = Block{std::move(varDecl.debugData), {}};
 				}
-				else if (varDecl.variables.size() == 1 && m_dialect.discardFunctionHandle())
+				else if (varDecl.variables.size() == 1 && discardFunctionHandle)
 					statement = ExpressionStatement{varDecl.debugData, FunctionCall{
 						varDecl.debugData,
-						BuiltinName{varDecl.debugData, *m_dialect.discardFunctionHandle()},
+						BuiltinName{varDecl.debugData, *discardFunctionHandle},
 						{*std::move(varDecl.value)}
 					}};
 			}

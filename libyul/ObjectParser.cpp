@@ -198,7 +198,7 @@ void ObjectParser::parseData(Object& _containingObject)
 std::string ObjectParser::parseUniqueName(Object const* _containingObject)
 {
 	expectToken(Token::StringLiteral, false);
-	auto const name = currentLiteral();
+	std::string const name{currentLiteral()};
 	if (name.empty())
 		parserError(3287_error, "Object name cannot be empty.");
 	else if (_containingObject && _containingObject->name == name)

@@ -537,6 +537,7 @@ operations, loops should be preferred over recursive calls. Furthermore,
 only 63/64th of the gas can be forwarded in a message call, which causes a
 depth limit of a little less than 1000 in practice.
 
+.. _delegatecall:
 .. index:: delegatecall, library
 
 Delegatecall and Libraries

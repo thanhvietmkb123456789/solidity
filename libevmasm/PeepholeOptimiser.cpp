@@ -709,6 +709,12 @@ size_t numberOfPops(AssemblyItems const& _items)
 
 }
 
+PeepholeOptimiser::PeepholeOptimiser(AssemblyItems& _items, langutil::EVMVersion const _evmVersion):
+	m_items(_items),
+	m_evmVersion(_evmVersion)
+{
+}
+
 bool PeepholeOptimiser::optimise()
 {
 	// Avoid referencing immutables too early by using approx. counting in bytesRequired()

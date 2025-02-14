@@ -32,7 +32,6 @@
 #include <libyul/Utilities.h>
 
 #include <libsolutil/CommonData.h>
-#include <libsolutil/cxx20.h>
 
 #include <variant>
 
@@ -68,7 +67,7 @@ void DataFlowAnalyzer::operator()(ExpressionStatement& _statement)
 		if (auto vars = isSimpleStore(StoreLoadLocation::Storage, _statement))
 		{
 			ASTModifier::operator()(_statement);
-			cxx20::erase_if(m_state.environment.storage, mapTuple([&](auto&& key, auto&& value) {
+			std::erase_if(m_state.environment.storage, mapTuple([&](auto&& key, auto&& value) {
 				return
 					!m_knowledgeBase.knownToBeDifferent(vars->first, key) &&
 					vars->second != value;
@@ -79,7 +78,7 @@ void DataFlowAnalyzer::operator()(ExpressionStatement& _statement)
 		else if (auto vars = isSimpleStore(StoreLoadLocation::Memory, _statement))
 		{
 			ASTModifier::operator()(_statement);
-			cxx20::erase_if(m_state.environment.memory, mapTuple([&](auto&& key, auto&& /* value */) {
+			std::erase_if(m_state.environment.memory, mapTuple([&](auto&& key, auto&& /* value */) {
 				return !m_knowledgeBase.knownToBeDifferentByAtLeast32(vars->first, key);
 			}));
 			// TODO erase keccak knowledge, but in a more clever way
@@ -272,14 +271,14 @@ void DataFlowAnalyzer::handleAssignment(std::set<YulName> const& _variables, Exp
 			// assignment to slot denoted by "name"
 			m_state.environment.storage.erase(name);
 			// assignment to slot contents denoted by "name"
-			cxx20::erase_if(m_state.environment.storage, mapTuple([&name](auto&& /* key */, auto&& value) { return value == name; }));
+			std::erase_if(m_state.environment.storage, mapTuple([&name](auto&& /* key */, auto&& value) { return value == name; }));
 			// assignment to slot denoted by "name"
 			m_state.environment.memory.erase(name);
 			// assignment to slot contents denoted by "name"
-			cxx20::erase_if(m_state.environment.keccak, [&name](auto&& _item) {
+			std::erase_if(m_state.environment.keccak, [&name](auto&& _item) {
 				return _item.first.first == name || _item.first.second == name || _item.second == name;
 			});
-			cxx20::erase_if(m_state.environment.memory, mapTuple([&name](auto&& /* key */, auto&& value) { return value == name; }));
+			std::erase_if(m_state.environment.memory, mapTuple([&name](auto&& /* key */, auto&& value) { return value == name; }));
 		}
 	}
 
@@ -337,9 +336,9 @@ void DataFlowAnalyzer::clearValues(std::set<YulName> _variables)
 	auto eraseCondition = mapTuple([&_variables](auto&& key, auto&& value) {
 		return _variables.count(key) || _variables.count(value);
 	});
-	cxx20::erase_if(m_state.environment.storage, eraseCondition);
-	cxx20::erase_if(m_state.environment.memory, eraseCondition);
-	cxx20::erase_if(m_state.environment.keccak, [&_variables](auto&& _item) {
+	std::erase_if(m_state.environment.storage, eraseCondition);
+	std::erase_if(m_state.environment.memory, eraseCondition);
+	std::erase_if(m_state.environment.keccak, [&_variables](auto&& _item) {
 		return
 			_variables.count(_item.first.first) ||
 			_variables.count(_item.first.second) ||
@@ -464,7 +463,7 @@ void DataFlowAnalyzer::joinKnowledge(Environment const& _olderEnvironment)
 		return;
 	joinKnowledgeHelper(m_state.environment.storage, _olderEnvironment.storage);
 	joinKnowledgeHelper(m_state.environment.memory, _olderEnvironment.memory);
-	cxx20::erase_if(m_state.environment.keccak, mapTuple([&_olderEnvironment](auto&& key, auto&& currentValue) {
+	std::erase_if(m_state.environment.keccak, mapTuple([&_olderEnvironment](auto&& key, auto&& currentValue) {
 		YulName const* oldValue = valueOrNullptr(_olderEnvironment.keccak, key);
 		return !oldValue || *oldValue != currentValue;
 	}));
@@ -479,7 +478,7 @@ void DataFlowAnalyzer::joinKnowledgeHelper(
 	// This also works for memory because _older is an "older version"
 	// of m_state.environment.memory and thus any overlapping write would have cleared the keys
 	// that are not known to be different inside m_state.environment.memory already.
-	cxx20::erase_if(_this, mapTuple([&_older](auto&& key, auto&& currentValue){
+	std::erase_if(_this, mapTuple([&_older](auto&& key, auto&& currentValue){
 		YulName const* oldValue = valueOrNullptr(_older, key);
 		return !oldValue || *oldValue != currentValue;
 	}));

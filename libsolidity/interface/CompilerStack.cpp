@@ -1181,6 +1181,39 @@ Json CompilerStack::interfaceSymbols(std::string const& _contractName) const
 	return interfaceSymbols;
 }
 
+Json CompilerStack::ethdebug() const
+{
+	solAssert(m_stackState >= AnalysisSuccessful, "Analysis was not successful.");
+	solAssert(!m_contracts.empty());
+	Json result = Json::object();
+	result["sources"] = sourceNames();
+	return result;
+}
+
+Json CompilerStack::ethdebug(std::string const& _contractName) const
+{
+	return ethdebug(contract(_contractName), /* runtime */ false);
+}
+
+Json CompilerStack::ethdebugRuntime(std::string const& _contractName) const
+{
+	return ethdebug(contract(_contractName), /* runtime */ true);
+}
+
+Json CompilerStack::ethdebug(Contract const& _contract, bool _runtime) const
+{
+	solAssert(m_stackState >= AnalysisSuccessful, "Analysis was not successful.");
+	solAssert(_contract.contract);
+	solUnimplementedAssert(!isExperimentalSolidity());
+	if (_runtime)
+	{
+		Json result = Json::object();
+		return result;
+	}
+	Json result = Json::object();
+	return result;
+}
+
 bytes CompilerStack::cborMetadata(std::string const& _contractName, bool _forIR) const
 {
 	solAssert(m_stackState >= AnalysisSuccessful, "Analysis was not successful.");

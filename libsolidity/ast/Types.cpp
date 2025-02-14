@@ -661,8 +661,12 @@ bool IntegerType::operator==(Type const& _other) const
 {
 	if (_other.category() != category())
 		return false;
-	IntegerType const& other = dynamic_cast<IntegerType const&>(_other);
-	return other.m_bits == m_bits && other.m_modifier == m_modifier;
+	return *this == dynamic_cast<IntegerType const&>(_other);
+}
+
+bool IntegerType::operator==(IntegerType const& _other) const
+{
+	return _other.m_bits == m_bits && _other.m_modifier == m_modifier;
 }
 
 std::string IntegerType::toString(bool) const
@@ -1699,17 +1703,21 @@ bool ArrayType::operator==(Type const& _other) const
 {
 	if (_other.category() != category())
 		return false;
-	ArrayType const& other = dynamic_cast<ArrayType const&>(_other);
+	return *this == dynamic_cast<ArrayType const&>(_other);
+}
+
+bool ArrayType::operator==(ArrayType const& _other) const
+{
 	if (
-		!equals(other) ||
-		other.isByteArray() != isByteArray() ||
-		other.isString() != isString() ||
-		other.isDynamicallySized() != isDynamicallySized()
+		!equals(_other) ||
+		_other.isByteArray() != isByteArray() ||
+		_other.isString() != isString() ||
+		_other.isDynamicallySized() != isDynamicallySized()
 	)
 		return false;
-	if (*other.baseType() != *baseType())
+	if (*_other.baseType() != *baseType())
 		return false;
-	return isDynamicallySized() || length() == other.length();
+	return isDynamicallySized() || length() == _other.length();
 }
 
 BoolResult ArrayType::validForLocation(DataLocation _loc) const
@@ -2704,7 +2712,12 @@ bool UserDefinedValueType::operator==(Type const& _other) const
 	if (_other.category() != category())
 		return false;
 	UserDefinedValueType const& other = dynamic_cast<UserDefinedValueType const&>(_other);
-	return other.definition() == definition();
+	return *this == other;
+}
+
+bool UserDefinedValueType::operator==(UserDefinedValueType const& _other) const
+{
+	return _other.definition() == definition();
 }
 
 std::string UserDefinedValueType::toString(bool /* _withoutDataLocation */) const
@@ -4058,6 +4071,11 @@ bool ModifierType::operator==(Type const& _other) const
 {
 	if (_other.category() != category())
 		return false;
+	return *this == dynamic_cast<ModifierType const&>(_other);
+}
+
+bool ModifierType::operator==(ModifierType const& _other) const
+{
 	ModifierType const& other = dynamic_cast<ModifierType const&>(_other);
 
 	if (m_parameterTypes.size() != other.m_parameterTypes.size())

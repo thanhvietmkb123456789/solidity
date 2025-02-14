@@ -7,5 +7,7 @@ object "C" {
         }
     }
 }
+// ====
+// bytecodeFormat: legacy
 // ----
 // CodeGenerationError 1284: Some immutables were read from but never assigned, possibly because of optimization.

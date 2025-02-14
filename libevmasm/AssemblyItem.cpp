@@ -393,7 +393,7 @@ std::string AssemblyItem::toAssemblyText(Assembly const& _assembly) const
 		text = "eofcreate{" +  std::to_string(static_cast<size_t>(data())) + "}";
 		break;
 	case ReturnContract:
-		text = "returcontract{" +  std::to_string(static_cast<size_t>(data())) + "}";
+		text = "returncontract{" +  std::to_string(static_cast<size_t>(data())) + "}";
 		break;
 	case RelativeJump:
 		text = "rjump{" + std::string("tag_") + std::to_string(relativeJumpTagID()) + "}";

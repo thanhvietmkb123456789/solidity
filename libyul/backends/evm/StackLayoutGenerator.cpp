@@ -26,8 +26,6 @@
 #include <libevmasm/GasMeter.h>
 
 #include <libsolutil/Algorithms.h>
-#include <libsolutil/cxx20.h>
-#include <libsolutil/Visitor.h>
 
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/algorithm/find.hpp>
@@ -577,7 +575,7 @@ Stack StackLayoutGenerator::combineStack(Stack const& _stack1, Stack const& _sta
 	for (auto slot: stack2Tail)
 		if (!util::contains(candidate, slot))
 			candidate.emplace_back(slot);
-	cxx20::erase_if(candidate, [](StackSlot const& slot) {
+	std::erase_if(candidate, [](StackSlot const& slot) {
 		return std::holds_alternative<LiteralSlot>(slot) || std::holds_alternative<FunctionCallReturnLabelSlot>(slot);
 	});
 

@@ -372,8 +372,8 @@ Minimum Compiler Versions
 
 The following C++ compilers and their minimum versions can build the Solidity codebase:
 
-- `GCC <https://gcc.gnu.org>`_, version 8+
-- `Clang <https://clang.llvm.org/>`_, version 7+
+- `GCC <https://gcc.gnu.org>`_, version 11+
+- `Clang <https://clang.llvm.org/>`_, version 14+
 - `MSVC <https://visualstudio.microsoft.com/vs/>`_, version 2019+
 
 Prerequisites - macOS
@@ -505,7 +505,7 @@ And for Windows:
     cmake -G "Visual Studio 16 2019" ..
 
 In case you want to use the version of boost installed by ``scripts\install_deps.ps1``, you will
-additionally need to pass ``-DBoost_DIR="deps\boost\lib\cmake\Boost-*"`` and ``-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded``
+additionally need to pass ``-DBoost_ROOT="deps/boost" -DBoost_INCLUDE_DIR="deps/boost/include"`` and ``-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded``
 as arguments to the call to ``cmake``.
 
 This should result in the creation of **solidity.sln** in that build directory.

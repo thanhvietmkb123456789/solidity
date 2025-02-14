@@ -27,7 +27,6 @@ object "a" {
 }
 
 // ====
-// EVMVersion: >=prague
 // bytecodeFormat: >=EOFv1
 // ----
 // Assembly:
@@ -69,7 +68,7 @@ object "a" {
 //         /* "source":397:398   */
 //       0x00
 //         /* "source":377:403   */
-//       returcontract{0}
+//       returncontract{0}
 //     stop
 //
 //     sub_0: assembly {

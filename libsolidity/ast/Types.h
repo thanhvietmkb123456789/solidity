@@ -495,6 +495,7 @@ public:
 	TypeResult unaryOperatorResult(Token _operator) const override;
 	TypeResult binaryOperatorResult(Token _operator, Type const* _other) const override;
 
+	bool operator==(IntegerType const& _other) const;
 	bool operator==(Type const& _other) const override;
 
 	unsigned calldataEncodedSize(bool _padded = true) const override { return _padded ? 32 : m_bits / 8; }
@@ -854,6 +855,7 @@ public:
 	BoolResult isImplicitlyConvertibleTo(Type const& _convertTo) const override;
 	BoolResult isExplicitlyConvertibleTo(Type const& _convertTo) const override;
 	std::string richIdentifier() const override;
+	bool operator==(ArrayType const& _other) const;
 	bool operator==(Type const& _other) const override;
 	unsigned calldataEncodedSize(bool) const override;
 	unsigned calldataEncodedTailSize() const override;
@@ -1148,6 +1150,7 @@ public:
 	Declaration const* typeDefinition() const override;
 
 	std::string richIdentifier() const override;
+	bool operator==(UserDefinedValueType const& _other) const;
 	bool operator==(Type const& _other) const override;
 
 	unsigned calldataEncodedSize(bool _padded) const override { return underlyingType().calldataEncodedSize(_padded); }
@@ -1625,6 +1628,7 @@ public:
 	bool hasSimpleZeroValueInMemory() const override { solAssert(false, ""); }
 	std::string richIdentifier() const override;
 	bool operator==(Type const& _other) const override;
+	bool operator==(ModifierType const& _other) const;
 	std::string toString(bool _withoutDataLocation) const override;
 protected:
 	std::vector<std::tuple<std::string, Type const*>> makeStackItems() const override { return {}; }

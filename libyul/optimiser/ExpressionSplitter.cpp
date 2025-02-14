@@ -35,6 +35,13 @@ using namespace solidity::yul;
 using namespace solidity::util;
 using namespace solidity::langutil;
 
+ExpressionSplitter::ExpressionSplitter(Dialect const& _dialect, NameDispenser& _nameDispenser):
+	m_dialect(_dialect),
+	m_nameDispenser(_nameDispenser)
+{}
+
+ExpressionSplitter::~ExpressionSplitter() = default;
+
 void ExpressionSplitter::run(OptimiserStepContext& _context, Block& _ast)
 {
 	ExpressionSplitter{_context.dialect, _context.dispenser}(_ast);

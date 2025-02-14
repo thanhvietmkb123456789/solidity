@@ -26,7 +26,6 @@
 #include <libyul/ControlFlowSideEffectsCollector.h>
 #include <libyul/backends/evm/EVMDialect.h>
 
-#include <libsolutil/cxx20.h>
 #include <libsolutil/Visitor.h>
 #include <libsolutil/Algorithms.h>
 
@@ -85,7 +84,7 @@ void cleanUnreachable(CFG& _cfg)
 
 	// Remove all entries from unreachable nodes from the graph.
 	for (CFG::BasicBlock* node: reachabilityCheck.visited)
-		cxx20::erase_if(node->entries, [&](CFG::BasicBlock* entry) -> bool {
+		std::erase_if(node->entries, [&](CFG::BasicBlock* entry) -> bool {
 			return !reachabilityCheck.visited.count(entry);
 		});
 
@@ -95,7 +94,7 @@ void cleanUnreachable(CFG& _cfg)
 	}), _cfg.functions.end());
 
 	// Remove functionInfos which are never referenced.
-	cxx20::erase_if(_cfg.functionInfo, [&](auto const& entry) -> bool {
+	std::erase_if(_cfg.functionInfo, [&](auto const& entry) -> bool {
 		return !reachabilityCheck.visited.count(entry.second.entry);
 	});
 }

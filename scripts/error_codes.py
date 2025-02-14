@@ -205,6 +205,7 @@ def examine_id_coverage(top_dir, source_id_to_file_names, new_ids_only=False):
         "7053", # Unimplemented feature error (parsing stage), currently has no tests
         "2339", # SMTChecker, covered by CL tests
         "6240", # SMTChecker, covered by CL tests
+        "2788", # SMTChecker: BMC: verification condition(s) could not be proved
         "1733", # AsmAnalysis: expecting bool expression (everything is implicitly bool without types in Yul)
         "9547", # AsmAnalysis: assigning incompatible types in Yul (whitelisted as there are currently no types)
     }
@@ -245,7 +246,6 @@ def examine_id_coverage(top_dir, source_id_to_file_names, new_ids_only=False):
         "4802",
         "4902",
         "5272",
-        "5622",
         "5798",
         "5840",
         "7128",

@@ -755,7 +755,13 @@ YulName Parser::expectAsmIdentifier()
 {
 	YulName name{currentLiteral()};
 	if (currentToken() == Token::Identifier && m_dialect.findBuiltin(name.str()))
-		fatalParserError(5568_error, "Cannot use builtin function name \"" + name.str() + "\" as identifier name.");
+		// Non-fatal. We'll continue and wrongly parse it as an identifier. May lead to some spurious
+		// errors after this point, but likely also much more useful ones.
+		m_errorReporter.parserError(
+			5568_error,
+			currentLocation(),
+			"Cannot use builtin function name \"" + name.str() + "\" as identifier name."
+		);
 	// NOTE: We keep the expectation here to ensure the correct source location for the error above.
 	expectToken(Token::Identifier);
 	return name;
@@ -779,7 +785,7 @@ void Parser::checkBreakContinuePosition(std::string const& _which)
 	}
 }
 
-bool Parser::isValidNumberLiteral(std::string const& _literal)
+bool Parser::isValidNumberLiteral(std::string_view const _literal)
 {
 	try
 	{
@@ -793,7 +799,7 @@ bool Parser::isValidNumberLiteral(std::string const& _literal)
 	if (boost::starts_with(_literal, "0x"))
 		return true;
 	else
-		return _literal.find_first_not_of("0123456789") == std::string::npos;
+		return _literal.find_first_not_of("0123456789") == std::string_view::npos;
 }
 
 void Parser::raiseUnsupportedTypesError(SourceLocation const& _location) const

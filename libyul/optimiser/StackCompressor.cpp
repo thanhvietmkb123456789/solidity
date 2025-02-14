@@ -15,7 +15,7 @@
 	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
 */
 /**
- * Optimisation stage that aggressively rematerializes certain variables ina a function to free
+ * Optimisation stage that aggressively rematerializes certain variables in a function to free
  * space on the stack until it is compilable.
  */
 

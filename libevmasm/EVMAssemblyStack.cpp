@@ -55,6 +55,7 @@ void EVMAssemblyStack::assemble()
 	solAssert(m_evmAssembly->isCreation());
 	solAssert(!m_evmRuntimeAssembly);
 
+	m_evmAssembly->optimise(m_optimiserSettings);
 	m_object = m_evmAssembly->assemble();
 	// TODO: Check for EOF
 	solAssert(m_evmAssembly->codeSections().size() == 1);
@@ -101,6 +102,25 @@ std::string const* EVMAssemblyStack::runtimeSourceMapping(std::string const& _co
 {
 	solAssert(_contractName == m_name);
 	return &m_runtimeSourceMapping;
+}
+
+Json EVMAssemblyStack::ethdebug(std::string const& _contractName) const
+{
+	solAssert(_contractName == m_name);
+	solAssert(m_ethdebug != nullptr);
+	return *m_ethdebug;
+}
+
+Json EVMAssemblyStack::ethdebugRuntime(std::string const& _contractName) const
+{
+	solAssert(_contractName == m_name);
+	solAssert(m_ethdebugRuntime != nullptr);
+	return *m_ethdebugRuntime;
+}
+
+Json EVMAssemblyStack::ethdebug() const
+{
+	return {};
 }
 
 Json EVMAssemblyStack::assemblyJSON(std::string const& _contractName) const

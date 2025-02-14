@@ -273,6 +273,7 @@ YulStack::assembleWithDeployed(std::optional<std::string_view> _deployName)
 				{{m_charStream->name(), 0}}
 			);
 		}
+		creationObject.ethdebug["not yet implemented @ MachineAssemblyObject::ethdebug"] = true;
 
 		if (deployedAssembly)
 		{
@@ -323,7 +324,7 @@ YulStack::assembleEVMWithDeployed(std::optional<std::string_view> _deployName)
 	{
 		compileEVM(adapter, optimize);
 
-		assembly.optimise(evmasm::Assembly::OptimiserSettings::translateSettings(m_optimiserSettings, m_evmVersion));
+		assembly.optimise(evmasm::Assembly::OptimiserSettings::translateSettings(m_optimiserSettings));
 
 		std::optional<size_t> subIndex;
 
@@ -368,7 +369,7 @@ std::string YulStack::print() const
 	yulAssert(m_stackState >= Parsed);
 	yulAssert(m_parserResult, "");
 	yulAssert(m_parserResult->hasCode(), "");
-	return m_parserResult->toString(
+	return (m_debugInfoSelection.ethdebug ? "/// ethdebug: enabled\n" : "") + m_parserResult->toString(
 		m_debugInfoSelection,
 		m_soliditySourceProvider
 	) + "\n";
@@ -380,6 +381,17 @@ Json YulStack::astJson() const
 	yulAssert(m_parserResult, "");
 	yulAssert(m_parserResult->hasCode(), "");
 	return  m_parserResult->toJson();
+}
+
+Json YulStack::ethdebug() const
+{
+	yulAssert(m_parserResult, "");
+	yulAssert(m_parserResult->hasCode(), "");
+	yulAssert(m_parserResult->analysisInfo, "");
+
+	Json result = Json::object();
+	result["sources"] = Json::array({m_charStream->name()});
+	return result;
 }
 
 Json YulStack::cfgJson() const
@@ -409,7 +421,7 @@ Json YulStack::cfgJson() const
 				subObjectsJson[subObject->name] = exportCFGFromObject(*subObject);
 				subObjectsJson["type"] = "subObject";
 				if (!subObject->subObjects.empty())
-					subObjectsJson["subObjects"] = exportCFGFromSubObjects(subObject->subObjects);
+					subObjectsJson[subObject->name]["subObjects"] = exportCFGFromSubObjects(subObject->subObjects);
 			}
 		return subObjectsJson;
 	};
@@ -418,7 +430,8 @@ Json YulStack::cfgJson() const
 	Json jsonObject = Json::object();
 	jsonObject[object.name] = exportCFGFromObject(object);
 	jsonObject["type"] = "Object";
-	jsonObject["subObjects"] = exportCFGFromSubObjects(object.subObjects);
+	if (!object.subObjects.empty())
+		jsonObject[object.name]["subObjects"] = exportCFGFromSubObjects(object.subObjects);
 	return jsonObject;
 }
 

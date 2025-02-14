@@ -25,8 +25,9 @@ assignees: ''
 ## Environment
 
 - Compiler version:
+- Compilation pipeline (legacy, IR, EOF):
 - Target EVM version (as per compiler settings):
-- Framework/IDE (e.g. Truffle or Remix):
+- Framework/IDE (e.g. Foundry, Hardhat, Remix):
 - EVM execution environment / backend / blockchain client:
 - Operating system:
 

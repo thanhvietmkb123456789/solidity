@@ -152,7 +152,7 @@ protected:
 	/// Reports an error if we are currently not inside the body part of a for loop.
 	void checkBreakContinuePosition(std::string const& _which);
 
-	static bool isValidNumberLiteral(std::string const& _literal);
+	static bool isValidNumberLiteral(std::string_view _literal);
 
 private:
 	Dialect const& m_dialect;

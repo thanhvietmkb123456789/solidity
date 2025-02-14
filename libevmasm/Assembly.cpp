@@ -444,7 +444,7 @@ std::string Assembly::assemblyString(
 {
 	std::ostringstream tmp;
 	assemblyStream(tmp, _debugInfoSelection, "", _sourceCodes);
-	return tmp.str();
+	return (_debugInfoSelection.ethdebug ? "/// ethdebug: enabled\n" : "") + tmp.str();
 }
 
 Json Assembly::assemblyJSON(std::map<std::string, unsigned> const& _sourceIndices, bool _includeSourceList) const
@@ -819,8 +819,8 @@ std::map<u256, u256> const& Assembly::optimiseInternal(
 				_tagsReferencedFromOutside,
 				_settings.expectedExecutionsPerDeployment,
 				isCreation(),
-				_settings.evmVersion}
-				.optimise();
+				m_evmVersion
+			}.optimise();
 		}
 		// TODO: verify this for EOF.
 		if (_settings.runJumpdestRemover && !m_eofVersion.has_value())
@@ -935,7 +935,7 @@ std::map<u256, u256> const& Assembly::optimiseInternal(
 		ConstantOptimisationMethod::optimiseConstants(
 			isCreation(),
 			isCreation() ? 1 : _settings.expectedExecutionsPerDeployment,
-			_settings.evmVersion,
+			m_evmVersion,
 			*this
 		);
 
@@ -1660,21 +1660,28 @@ LinkerObject const& Assembly::assembleEOF() const
 
 		ptrdiff_t const relativeJumpOffset = static_cast<ptrdiff_t>(tagPos) - (static_cast<ptrdiff_t>(refPos) + 2);
 		// This cannot happen in practice because we'll run into section size limit first.
-		solAssert(-0x8000 <= relativeJumpOffset && relativeJumpOffset <= 0x7FFF, "Relative jump too far");
+		if (!(-0x8000 <= relativeJumpOffset && relativeJumpOffset <= 0x7FFF))
+			// TODO: Include source location. Note that origin locations we have in debug data are
+			// not usable for error reporting when compiling pure Yul because they point at the optimized source.
+			throw Error(
+				2703_error,
+				Error::Type::CodeGenerationError,
+				"Relative jump too far"
+			);
 		solAssert(relativeJumpOffset < -2 || 0 <= relativeJumpOffset, "Relative jump offset into immediate argument.");
 		setBigEndianUint16(ret.bytecode, refPos, static_cast<size_t>(static_cast<uint16_t>(relativeJumpOffset)));
 	}
 
 	for (auto i: referencedSubIds)
 	{
-		size_t const subAssemblyPostionInParentObject = ret.bytecode.size();
+		size_t const subAssemblyPositionInParentObject = ret.bytecode.size();
 		auto const& subAssemblyLinkerObject = m_subs[i]->assemble();
 		// Append subassembly bytecode to the parent assembly result bytecode
 		ret.bytecode += subAssemblyLinkerObject.bytecode;
 		// Add subassembly link references to parent linker object.
 		// Offset accordingly to subassembly position in parent object bytecode
 		for (auto const& [subAssemblyLinkRefPosition, linkRef]: subAssemblyLinkerObject.linkReferences)
-			ret.linkReferences[subAssemblyPostionInParentObject + subAssemblyLinkRefPosition] = linkRef;
+			ret.linkReferences[subAssemblyPositionInParentObject + subAssemblyLinkRefPosition] = linkRef;
 	}
 
 	// TODO: Fill functionDebugData for EOF. It probably should be handled for new code section in the loop above.
@@ -1762,10 +1769,10 @@ Assembly const* Assembly::subAssemblyById(size_t _subId) const
 	return currentAssembly;
 }
 
-Assembly::OptimiserSettings Assembly::OptimiserSettings::translateSettings(frontend::OptimiserSettings const& _settings, langutil::EVMVersion const& _evmVersion)
+Assembly::OptimiserSettings Assembly::OptimiserSettings::translateSettings(frontend::OptimiserSettings const& _settings)
 {
 	// Constructing it this way so that we notice changes in the fields.
-	evmasm::Assembly::OptimiserSettings asmSettings{false,  false, false, false, false, false, _evmVersion, 0};
+	OptimiserSettings asmSettings{false,  false, false, false, false, false, 0};
 	asmSettings.runInliner = _settings.runInliner;
 	asmSettings.runJumpdestRemover = _settings.runJumpdestRemover;
 	asmSettings.runPeephole = _settings.runPeephole;
@@ -1773,6 +1780,5 @@ Assembly::OptimiserSettings Assembly::OptimiserSettings::translateSettings(front
 	asmSettings.runCSE = _settings.runCSE;
 	asmSettings.runConstantOptimiser = _settings.runConstantOptimiser;
 	asmSettings.expectedExecutionsPerDeployment = _settings.expectedExecutionsPerDeployment;
-	asmSettings.evmVersion = _evmVersion;
 	return asmSettings;
 }

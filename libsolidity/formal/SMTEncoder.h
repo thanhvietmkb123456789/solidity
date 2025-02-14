@@ -71,7 +71,7 @@ public:
 
 	/// @returns the innermost element in a chain of 1-tuples if applicable,
 	/// otherwise _expr.
-	static Expression const* innermostTuple(Expression const& _expr);
+	static Expression const& innermostTuple(Expression const& _expr);
 
 	/// @returns the underlying type if _type is UserDefinedValueType,
 	/// and _type otherwise.
@@ -229,6 +229,7 @@ protected:
 	void visitBytesConcat(FunctionCall const& _funCall);
 	void visitCryptoFunction(FunctionCall const& _funCall);
 	void visitGasLeft(FunctionCall const& _funCall);
+	void visitBlobHash(FunctionCall const& _funCall);
 	virtual void visitAddMulMod(FunctionCall const& _funCall);
 	void visitWrapUnwrap(FunctionCall const& _funCall);
 	void visitObjectCreation(FunctionCall const& _funCall);
@@ -438,6 +439,9 @@ protected:
 	std::set<FunctionDefinition const*, ASTNode::CompareByID> const& allFreeFunctions() const { return m_freeFunctions; }
 	/// Create symbolic variables for the free constants in all @param _sources.
 	void createFreeConstants(std::set<SourceUnit const*, ASTNode::CompareByID> const& _sources);
+
+	/// Create symbolic variables for all state variables for all contracts in all @param _sources.
+	void createStateVariables(std::set<SourceUnit const*, ASTNode::CompareByID> const& _sources);
 
 	/// @returns a note to be added to warnings.
 	std::string extraComment();

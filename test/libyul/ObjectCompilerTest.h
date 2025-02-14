@@ -54,6 +54,7 @@ private:
 	void disambiguate();
 
 	frontend::OptimisationPreset m_optimisationPreset;
+	std::vector<std::string> m_outputSetting;
 };
 
 }

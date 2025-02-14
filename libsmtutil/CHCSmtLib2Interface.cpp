@@ -355,6 +355,21 @@ smtutil::Expression CHCSmtLib2Interface::ScopedParser::toSMTUtilExpression(SMTLi
 						auto accessor = maybeTupleAccessor.value();
 						return smtutil::Expression("dt_accessor_" + accessor.first, std::move(arguments), accessor.second);
 					}
+					if (op == "select")
+					{
+						smtSolverInteractionRequire(arguments.size() == 2, "Select has two arguments: array and index");
+						return smtutil::Expression::select(arguments[0], arguments[1]);
+					}
+					if (op == "store")
+					{
+						smtSolverInteractionRequire(arguments.size() == 3, "Store has three arguments: array, index and element");
+						return smtutil::Expression::store(arguments[0], arguments[1], arguments[2]);
+					}
+					if (op == "bv2int")
+					{
+						smtSolverInteractionRequire(arguments.size() == 1, "bv2int has one argument");
+						return smtutil::Expression::bv2int(arguments[0]);
+					}
 					else
 					{
 						std::set<std::string> boolOperators{"and", "or", "not", "=", "<", ">", "<=", ">=", "=>"};

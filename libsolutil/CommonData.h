@@ -470,7 +470,7 @@ inline std::string asString(bytesConstRef _b)
 }
 
 /// Converts a string to a byte array containing the string's (byte) data.
-inline bytes asBytes(std::string const& _b)
+inline bytes asBytes(std::string_view const _b)
 {
 	return bytes((uint8_t const*)_b.data(), (uint8_t const*)(_b.data() + _b.size()));
 }

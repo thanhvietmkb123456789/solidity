@@ -34,6 +34,8 @@ struct ControlFlowLiveness{
 	std::reference_wrapper<ControlFlow const> controlFlow;
 	std::unique_ptr<SSACFGLiveness> mainLiveness;
 	std::vector<std::unique_ptr<SSACFGLiveness>> functionLiveness;
+
+	std::string toDot() const;
 };
 
 struct ControlFlow

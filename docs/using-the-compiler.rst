@@ -182,6 +182,8 @@ at each version. Backward compatibility is not guaranteed between each version.
    - Opcode ``mcopy`` is available in assembly (see `EIP-5656 <https://eips.ethereum.org/EIPS/eip-5656>`_).
    - Opcodes ``tstore`` and ``tload`` are available in assembly (see `EIP-1153 <https://eips.ethereum.org/EIPS/eip-1153>`_).
 - ``prague`` (**experimental**)
+- ``osaka`` (**experimental**)
+   - Experimental compilation to EOF is available starting from this version. (`EIP-7692 <https://eips.ethereum.org/EIPS/eip-7692>`_)
 
 .. index:: ! standard JSON, ! --standard-json
 .. _compiler-api:
@@ -288,6 +290,9 @@ Input Description
           // enabled an can only be explicitly disabled via 'details'.
           // WARNING: Before version 0.8.6 omitting this setting was not equivalent to setting
           // it to false and would result in all components being disabled instead.
+          // WARNING: Enabling optimizations for EVMAssembly input is allowed but not necessary under normal
+          // circumstances. It forces the opcode-based optimizer to run again and can produce bytecode that
+          // is not reproducible from metadata.
           "enabled": true,
           // Optimize for how many times you intend to run the code. Optional. Default: 200.
           // Lower values will optimize more for initial deployment cost, higher
@@ -299,12 +304,14 @@ Input Description
           // all values are provided explicitly.
           "details": {
             // Peephole optimizer (opcode-based). Optional. Default: true.
-            // NOTE: Always runs (even with optimization disabled) unless explicitly turned off here.
+            // Default for EVMAssembly input: false when optimization is not enabled.
+            // NOTE: Always runs (even with optimization disabled) except for EVMAssembly input or when explicitly turned off here.
             "peephole": true,
             // Inliner (opcode-based). Optional. Default: true when optimization is enabled.
             "inliner": false,
             // Unused JUMPDEST remover (opcode-based). Optional. Default: true.
-            // NOTE: Always runs (even with optimization disabled) unless explicitly turned off here.
+            // Default for EVMAssembly input: false when optimization is not enabled.
+            // NOTE: Always runs (even with optimization disabled) except for EVMAssembly input or when explicitly turned off here.
             "jumpdestRemover": true,
             // Literal reordering (codegen-based). Optional. Default: true when optimization is enabled.
             // Moves literals to the right of commutative binary operators during code generation, helping exploit associativity.
@@ -349,7 +356,7 @@ Input Description
         // Version of the EVM to compile for.
         // Affects type checking and code generation. Can be homestead,
         // tangerineWhistle, spuriousDragon, byzantium, constantinople,
-        // petersburg, istanbul, berlin, london, paris, shanghai, cancun (default) or prague (experimental).
+        // petersburg, istanbul, berlin, london, paris, shanghai, cancun (default), prague (experimental) or osaka (experimental).
         "evmVersion": "cancun",
         // Optional: Change compilation pipeline to go through the Yul intermediate representation.
         // This is false by default.

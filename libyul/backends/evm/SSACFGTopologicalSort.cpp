@@ -28,11 +28,7 @@ ForwardSSACFGTopologicalSort::ForwardSSACFGTopologicalSort(SSACFG const& _cfg):
 	yulAssert(m_cfg.entry.value == 0);
 	m_preOrder.reserve(m_cfg.numBlocks());
 	m_postOrder.reserve(m_cfg.numBlocks());
-	for (size_t id = 0; id < m_cfg.numBlocks(); ++id)
-	{
-		if (!m_explored[id])
-			dfs(id);
-	}
+	dfs(0);
 
 	for (auto const& [v1, v2]: m_potentialBackEdges)
 		if (ancestor(v2, v1))

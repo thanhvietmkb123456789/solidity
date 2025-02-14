@@ -5,14 +5,30 @@ Language Features:
 
 Compiler Features:
  * Error Reporting: Errors reported during code generation now point at the location of the contract when more fine-grained location is not available.
+ * EVM: Support for the EVM version "Osaka".
+ * EVM Assembly Import: Allow enabling opcode-based optimizer.
+ * General: The experimental EOF backend implements a subset of EOF sufficient to compile arbitrary high-level Solidity syntax via IR with optimization enabled.
+ * SMTChecker: Support `block.blobbasefee` and `blobhash`.
  * SMTChecker: Z3 is now a runtime dependency, not a build dependency (except for emscripten build).
+ * Yul Parser: Make name clash with a builtin a non-fatal error.
 
 
 Bugfixes:
-* General: Fix internal compiler error when requesting IR AST outputs for interfaces and abstract contracts.
-* Standard JSON Interface: Fix ``generatedSources`` and ``sourceMap`` being generated internally even when not requested.
-* Yul: Fix internal compiler error when a code generation error should be reported instead.
+ * General: Fix internal compiler error when requesting IR AST outputs for interfaces and abstract contracts.
+ * SMTChecker: Fix reporting on targets that are safe in the context of one contract but unsafe in the context of another contract.
+ * SMTChecker: Fix SMT logic error when analyzing cross-contract getter call with BMC.
+ * SMTChecker: Fix SMT logic error when contract deployment involves string literal to fixed bytes conversion.
+ * SMTChecker: Fix SMT logic error when external call has extra effectless parentheses.
+ * SMTChecker: Fix SMT logic error when initializing a fixed-sized-bytes array using string literals.
+ * SMTChecker: Fix SMT logic error when translating invariants involving array store and select operations.
+ * SMTChecker: Fix wrong encoding of string literals as arguments of ``ecrecover`` precompile.
+ * Standard JSON Interface: Fix ``generatedSources`` and ``sourceMap`` being generated internally even when not requested.
+ * Yul: Fix internal compiler error when a code generation error should be reported instead.
 
+
+Build system:
+ * Linux release builds are fully static again and no longer depend on ``glibc``.
+ * Switch from C++17 to C++20 as the target standard.
 
 ### 0.8.28 (2024-10-09)
 
@@ -1439,7 +1455,7 @@ Language Features:
  * Introduce ``virtual`` and ``override`` keywords.
  * Modify ``push(element)`` for dynamic storage arrays such that it does not return the new length anymore.
  * Yul: Introduce ``leave`` statement that exits the current function.
- * JSON AST: Add the function selector of each externally-visible FunctonDefinition to the AST JSON export.
+ * JSON AST: Add the function selector of each externally-visible FunctionDefinition to the AST JSON export.
 
 Compiler Features:
  * Allow revert strings to be stripped from the binary using the ``--revert-strings`` option or the ``settings.debug.revertStrings`` setting.

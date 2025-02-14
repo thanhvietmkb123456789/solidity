@@ -140,6 +140,11 @@ bigint LiteralMethod::gasNeeded() const
 	);
 }
 
+AssemblyItems LiteralMethod::execute(Assembly&) const
+{
+	return {};
+}
+
 bigint CodeCopyMethod::gasNeeded() const
 {
 	return combineGas(
@@ -224,6 +229,23 @@ AssemblyItems CodeCopyMethod::copyRoutine(AssemblyItem* _pushData) const
 		};
 		return copyRoutine;
 	}
+}
+
+ComputeMethod::ComputeMethod(Params const& _params, u256 const& _value):
+	ConstantOptimisationMethod(_params, _value)
+{
+	m_routine = findRepresentation(m_value);
+	assertThrow(
+		checkRepresentation(m_value, m_routine),
+		OptimizerException,
+		"Invalid constant expression created."
+	);
+}
+ComputeMethod::~ComputeMethod() = default;
+
+AssemblyItems ComputeMethod::execute(Assembly&) const
+{
+	return m_routine;
 }
 
 AssemblyItems ComputeMethod::findRepresentation(u256 const& _value)

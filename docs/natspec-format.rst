@@ -209,7 +209,7 @@ JSON file as output for the ``Tree`` contract:
         "age(uint256)" :
         {
           "notice" : "Calculate tree age in years, rounded up, for live trees"
-        }
+        },
         "leaves()" :
         {
             "notice" : "Returns the amount of leaves the tree has."

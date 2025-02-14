@@ -60,6 +60,7 @@ struct MachineAssemblyObject
 	std::shared_ptr<evmasm::LinkerObject> bytecode;
 	std::shared_ptr<evmasm::Assembly> assembly;
 	std::unique_ptr<std::string> sourceMappings;
+	Json ethdebug = Json::object();
 };
 
 /*
@@ -147,6 +148,9 @@ public:
 
 	// return the JSON representation of the YuL CFG (experimental)
 	Json cfgJson() const;
+
+	/// @returns a JSON representing the top-level ethdebug data (types, etc.).
+	Json ethdebug() const;
 
 	/// Return the parsed and analyzed object.
 	std::shared_ptr<Object> parserResult() const;

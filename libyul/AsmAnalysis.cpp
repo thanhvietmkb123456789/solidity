@@ -690,16 +690,33 @@ void AsmAnalyzer::expectValidIdentifier(YulName _identifier, SourceLocation cons
 bool AsmAnalyzer::validateInstructions(std::string_view _instructionIdentifier, langutil::SourceLocation const& _location)
 {
 	// NOTE: This function uses the default EVM version instead of the currently selected one.
-	auto const& defaultEVMDialect = EVMDialect::strictAssemblyForEVM(EVMVersion{}, std::nullopt);
+	auto const& defaultEVMDialect = EVMDialect::strictAssemblyForEVMObjects(EVMVersion{}, std::nullopt);
 	auto const builtinHandle = defaultEVMDialect.findBuiltin(_instructionIdentifier);
 	if (builtinHandle && defaultEVMDialect.builtin(*builtinHandle).instruction.has_value())
 		return validateInstructions(*defaultEVMDialect.builtin(*builtinHandle).instruction, _location);
 
-	// TODO: Change `prague()` to `EVMVersion{}` once EOF gets deployed
-	auto const& eofDialect = EVMDialect::strictAssemblyForEVM(EVMVersion::prague(), 1);
+	solAssert(!m_eofVersion.has_value() || *m_eofVersion == 1);
+	auto const& eofDialect = EVMDialect::strictAssemblyForEVMObjects(EVMVersion::firstWithEOF(), 1);
 	auto const eofBuiltinHandle = eofDialect.findBuiltin(_instructionIdentifier);
-	if (eofBuiltinHandle && eofDialect.builtin(*eofBuiltinHandle).instruction.has_value())
-		return validateInstructions(*eofDialect.builtin(*eofBuiltinHandle).instruction, _location);
+	if (eofBuiltinHandle)
+	{
+		auto const builtin = eofDialect.builtin(*eofBuiltinHandle);
+		if (builtin.instruction.has_value())
+			return validateInstructions(*builtin.instruction, _location);
+		// If builtin is available in EOF but not available in legacy (and we build to legacy) generate custom error.
+		else if (!m_eofVersion.has_value() && !builtinHandle)
+		{
+			m_errorReporter.declarationError(
+				7223_error,
+				_location,
+				fmt::format(
+					"Builtin function \"{}\" is only available in EOF.",
+					fmt::arg("function", _instructionIdentifier)
+				)
+			);
+			return true;
+		}
+	}
 
 	return false;
 }
@@ -716,8 +733,16 @@ bool AsmAnalyzer::validateInstructions(evmasm::Instruction _instr, SourceLocatio
 	yulAssert(
 		_instr != evmasm::Instruction::JUMP &&
 		_instr != evmasm::Instruction::JUMPI &&
-		_instr != evmasm::Instruction::JUMPDEST,
-	"");
+		_instr != evmasm::Instruction::JUMPDEST &&
+		_instr != evmasm::Instruction::DATALOADN &&
+		_instr != evmasm::Instruction::EOFCREATE &&
+		_instr != evmasm::Instruction::RETURNCONTRACT &&
+		_instr != evmasm::Instruction::RJUMP &&
+		_instr != evmasm::Instruction::RJUMPI &&
+		_instr != evmasm::Instruction::CALLF &&
+		_instr != evmasm::Instruction::JUMPF &&
+		_instr != evmasm::Instruction::RETF
+	);
 
 	auto errorForVM = [&](ErrorId _errorId, std::string const& vmKindMessage) {
 		m_errorReporter.typeError(
@@ -783,7 +808,7 @@ bool AsmAnalyzer::validateInstructions(evmasm::Instruction _instr, SourceLocatio
 			4328_error,
 			_location,
 			fmt::format(
-				"The \"{}\" instruction is only available on EOF.",
+				"The \"{}\" instruction is only available in EOF.",
 				fmt::arg("instruction", boost::to_lower_copy(instructionInfo(_instr, m_evmVersion).name))
 			)
 		);

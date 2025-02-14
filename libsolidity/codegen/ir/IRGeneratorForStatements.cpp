@@ -1529,6 +1529,15 @@ void IRGeneratorForStatements::endVisit(FunctionCall const& _functionCall)
 	case FunctionType::Kind::BlockHash:
 	case FunctionType::Kind::BlobHash:
 	{
+		solAssert(
+			!m_context.eofVersion().has_value() || functionType->kind() != FunctionType::Kind::GasLeft,
+			"EOF does not support gasleft."
+		);
+		solAssert(
+			!m_context.eofVersion().has_value() || functionType->kind() != FunctionType::Kind::Selfdestruct,
+			"EOF does not support selfdestruct."
+		);
+
 		static std::map<FunctionType::Kind, std::string> functions = {
 			{FunctionType::Kind::GasLeft, "gas"},
 			{FunctionType::Kind::Selfdestruct, "selfdestruct"},
@@ -1845,6 +1854,7 @@ void IRGeneratorForStatements::endVisit(MemberAccess const& _memberAccess)
 				")\n";
 		else if (member == "code")
 		{
+			solAssert(!m_context.eofVersion().has_value(), "EOF does not support address.code.");
 			std::string externalCodeFunction = m_utils.externalCodeFunction();
 			define(_memberAccess) <<
 				externalCodeFunction <<
@@ -1853,10 +1863,13 @@ void IRGeneratorForStatements::endVisit(MemberAccess const& _memberAccess)
 				")\n";
 		}
 		else if (member == "codehash")
+		{
+			solAssert(!m_context.eofVersion().has_value(), "EOF does not support address.codehash.");
 			define(_memberAccess) <<
 				"extcodehash(" <<
 				expressionAsType(_memberAccess.expression(), *TypeProvider::address()) <<
 				")\n";
+		}
 		else if (std::set<std::string>{"send", "transfer"}.count(member))
 		{
 			solAssert(dynamic_cast<AddressType const&>(*_memberAccess.expression().annotation().type).stateMutability() == StateMutability::Payable);
@@ -1973,6 +1986,7 @@ void IRGeneratorForStatements::endVisit(MemberAccess const& _memberAccess)
 			solAssert(false, "Blockhash has been removed.");
 		else if (member == "creationCode" || member == "runtimeCode")
 		{
+			solAssert(!m_context.eofVersion().has_value(), "EOF does not support \"" + member + "\".");
 			Type const* arg = dynamic_cast<MagicType const&>(*_memberAccess.expression().annotation().type).typeArgument();
 			auto const& contractType = dynamic_cast<ContractType const&>(*arg);
 			solAssert(!contractType.isSuper());

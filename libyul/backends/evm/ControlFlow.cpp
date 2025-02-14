@@ -26,3 +26,8 @@ ControlFlowLiveness::ControlFlowLiveness(ControlFlow const& _controlFlow):
 	mainLiveness(std::make_unique<SSACFGLiveness>(*_controlFlow.mainGraph)),
 	functionLiveness(_controlFlow.functionGraphs | ranges::views::transform([](auto const& _cfg) { return std::make_unique<SSACFGLiveness>(*_cfg); }) | ranges::to<std::vector>)
 { }
+
+std::string ControlFlowLiveness::toDot() const
+{
+	return controlFlow.get().toDot(this);
+}

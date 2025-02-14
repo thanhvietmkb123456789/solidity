@@ -73,7 +73,7 @@ struct Literal { langutil::DebugData::ConstPtr debugData; LiteralKind kind; Lite
 /// External / internal identifier or label reference
 struct Identifier { langutil::DebugData::ConstPtr debugData; YulName name; };
 /// AST Node representing a reference to one of the built-in functions (as defined by the dialect).
-/// In the source it's an actual name, while in the AST we only store a handle that can be used to find the the function in the Dialect
+/// In the source it's an actual name, while in the AST we only store a handle that can be used to find the function in the Dialect
 struct BuiltinName { langutil::DebugData::ConstPtr debugData; BuiltinHandle handle; };
 /// Assignment ("x := mload(20:u256)", expects push-1-expression on the right hand
 /// side and requires x to occupy exactly one stack slot.

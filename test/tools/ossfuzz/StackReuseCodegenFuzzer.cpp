@@ -52,7 +52,7 @@ static evmc::VM evmone = evmc::VM{evmc_create_evmone()};
 namespace
 {
 /// @returns true if there are recursive functions, false otherwise.
-bool recursiveFunctionExists(Dialect const& _dialect, yul::Object& _object)
+bool recursiveFunctionExists(Dialect const& /*_dialect*/, yul::Object& _object)
 {
 	auto recursiveFunctions = CallGraphGenerator::callGraph(_object.code()->root()).recursiveFunctions();
 	for(auto&& [function, variables]: CompilabilityChecker{

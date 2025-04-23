@@ -756,7 +756,6 @@ void SMTEncoder::initContract(ContractDefinition const& _contract)
 	m_context.pushSolver();
 	createStateVariables(_contract);
 	clearIndices(m_currentContract, nullptr);
-	m_variableUsage.setCurrentContract(_contract);
 	m_checked = true;
 }
 
@@ -929,8 +928,10 @@ void SMTEncoder::visitAddMulMod(FunctionCall const& _funCall)
 void SMTEncoder::visitWrapUnwrap(FunctionCall const& _funCall)
 {
 	auto const& args = _funCall.arguments();
-	solAssert(args.size() == 1, "");
-	defineExpr(_funCall, expr(*args.front()));
+	smtAssert(args.size() == 1, "Expected exactly one argument to wrap/unwrap");
+	auto const& funType = dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type);
+	auto const* argType = funType.parameterTypes().front();
+	defineExpr(_funCall, expr(*args.front(), argType));
 }
 
 void SMTEncoder::visitObjectCreation(FunctionCall const& _funCall)
@@ -1092,19 +1093,24 @@ void SMTEncoder::visitPublicGetter(FunctionCall const& _funCall)
 	}
 }
 
-bool SMTEncoder::shouldAnalyze(SourceUnit const& _source) const
+bool SMTEncoder::shouldEncode(ContractDefinition const& _contract) const
+{
+	return _contract.canBeDeployed();
+}
+
+bool SMTEncoder::shouldAnalyzeVerificationTargetsFor(SourceUnit const& _source) const
 {
 	return m_settings.contracts.isDefault() ||
 		m_settings.contracts.has(*_source.annotation().path);
 }
 
-bool SMTEncoder::shouldAnalyze(ContractDefinition const& _contract) const
+bool SMTEncoder::shouldAnalyzeVerificationTargetsFor(ContractDefinition const& _contract) const
 {
-	if (!_contract.canBeDeployed())
+	if (!shouldEncode(_contract))
 		return false;
 
 	return m_settings.contracts.isDefault() ||
-		m_settings.contracts.has(_contract.sourceUnitName());
+		m_settings.contracts.has(_contract.sourceUnitName(), _contract.name());
 }
 
 void SMTEncoder::visitTypeConversion(FunctionCall const& _funCall)
@@ -2806,14 +2812,6 @@ Expression const* SMTEncoder::cleanExpression(Expression const& _expr)
 	return expr;
 }
 
-std::set<VariableDeclaration const*> SMTEncoder::touchedVariables(ASTNode const& _node)
-{
-	std::vector<CallableDeclaration const*> callStack;
-	for (auto const& call: m_callStack)
-		callStack.push_back(call.first);
-	return m_variableUsage.touchedVariables(_node, callStack);
-}
-
 Declaration const* SMTEncoder::expressionToDeclaration(Expression const& _expr) const
 {
 	if (auto const* identifier = dynamic_cast<Identifier const*>(&_expr))
@@ -3124,13 +3122,8 @@ RationalNumberType const* SMTEncoder::isConstant(Expression const& _expr)
 	if (auto type = dynamic_cast<RationalNumberType const*>(_expr.annotation().type))
 		return type;
 
-	// _expr may not be constant evaluable.
-	// In that case we ignore any warnings emitted by the constant evaluator,
-	// as it will return nullptr in case of failure.
-	ErrorList l;
-	ErrorReporter e(l);
-	if (auto t = ConstantEvaluator::evaluate(e, _expr))
-		return TypeProvider::rationalNumber(t->value);
+	if (auto typedRational = ConstantEvaluator::tryEvaluate(_expr))
+		return TypeProvider::rationalNumber(typedRational->value);
 
 	return nullptr;
 }

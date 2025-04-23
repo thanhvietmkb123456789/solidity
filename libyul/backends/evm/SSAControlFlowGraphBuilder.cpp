@@ -548,21 +548,22 @@ void SSAControlFlowGraphBuilder::assign(std::vector<std::reference_wrapper<Scope
 std::vector<SSACFG::ValueId> SSAControlFlowGraphBuilder::visitFunctionCall(FunctionCall const& _call)
 {
 	bool canContinue = true;
-	SSACFG::Operation operation = [&](){
-		if (BuiltinFunction const* builtin = resolveBuiltinFunction(_call.functionName, m_dialect))
+	SSACFG::Operation operation = std::visit(util::GenericVisitor{
+		[&](BuiltinName const& _builtinName)
 		{
-			SSACFG::Operation result{{}, SSACFG::BuiltinCall{_call.debugData, *builtin, _call}, {}};
+			auto const& builtin = m_dialect.builtin(_builtinName.handle);
+			SSACFG::Operation result{{}, SSACFG::BuiltinCall{_call.debugData, builtin, _call}, {}};
 			for (auto&& [idx, arg]: _call.arguments | ranges::views::enumerate | ranges::views::reverse)
-				if (!builtin->literalArgument(idx).has_value())
+				if (!builtin.literalArgument(idx).has_value())
 					result.inputs.emplace_back(std::visit(*this, arg));
-			for (size_t i = 0; i < builtin->numReturns; ++i)
+			for (size_t i = 0; i < builtin.numReturns; ++i)
 				result.outputs.emplace_back(m_graph.newVariable(m_currentBlock));
-			canContinue = builtin->controlFlowSideEffects.canContinue;
+			canContinue = builtin.controlFlowSideEffects.canContinue;
 			return result;
-		}
-		else
+		},
+		[&](Identifier const& _identifier)
 		{
-			YulName const functionName{resolveFunctionName(_call.functionName, m_dialect)};
+			YulName const& functionName = _identifier.name;
 			Scope::Function const& function = lookupFunction(functionName);
 			auto const* definition = findFunctionDefinition(&function);
 			yulAssert(definition);
@@ -574,7 +575,7 @@ std::vector<SSACFG::ValueId> SSAControlFlowGraphBuilder::visitFunctionCall(Funct
 				result.outputs.emplace_back(m_graph.newVariable(m_currentBlock));
 			return result;
 		}
-	}();
+	}, _call.functionName);
 	auto results = operation.outputs;
 	currentBlock().operations.emplace_back(std::move(operation));
 	if (!canContinue)

@@ -290,7 +290,7 @@ struct DupSwap: SimplePeepholeOptimizerMethod<DupSwap>
 		if (
 			SemanticInformation::isDupInstruction(_dupN) &&
 			SemanticInformation::isSwapInstruction(_swapN) &&
-			getDupNumber(_dupN.instruction()) == getSwapNumber(_swapN.instruction())
+			SemanticInformation::getDupNumber(_dupN) == SemanticInformation::getSwapNumber(_swapN)
 		)
 		{
 			*_out = _dupN;
@@ -690,16 +690,12 @@ struct DeduplicateNextTagSize1 : SimplePeepholeOptimizerMethod<DeduplicateNextTa
 	}
 };
 
-void applyMethods(OptimiserState&)
+template <typename... Method>
+void applyMethods(OptimiserState& _state)
 {
-	assertThrow(false, OptimizerException, "Peephole optimizer failed to apply identity.");
-}
-
-template <typename Method, typename... OtherMethods>
-void applyMethods(OptimiserState& _state, Method, OtherMethods... _other)
-{
-	if (!Method::apply(_state))
-		applyMethods(_state, _other...);
+	bool continueWithNextMethod = true;
+	((continueWithNextMethod && (continueWithNextMethod &= !Method::apply(_state))), ...);
+	assertThrow(!continueWithNextMethod, OptimizerException, "Peephole optimizer failed to apply identity.");
 }
 
 size_t numberOfPops(AssemblyItems const& _items)
@@ -721,33 +717,32 @@ bool PeepholeOptimiser::optimise()
 	auto const approx = evmasm::Precision::Approximate;
 	OptimiserState state {m_items, 0, back_inserter(m_optimisedItems), m_evmVersion};
 	while (state.i < m_items.size())
-		applyMethods(
-			state,
-			PushPop(),
-			OpPop(),
-			OpStop(),
-			OpReturnRevert(),
-			DoublePush(),
-			DoubleSwap(),
-			CommutativeSwap(),
-			SwapComparison(),
-			DupSwap(),
-			IsZeroIsZeroJumpI(),
-			IsZeroIsZeroRJumpI(), // EOF specific
-			EqIsZeroJumpI(),
-			EqIsZeroRJumpI(),     // EOF specific
-			DoubleJump(),
-			DoubleRJump(),        // EOF specific
-			JumpToNext(),
-			RJumpToNext(),        // EOF specific
-			UnreachableCode(),
-			DeduplicateNextTagSize3(),
-			DeduplicateNextTagSize2(),
-			DeduplicateNextTagSize1(),
-			TagConjunctions(),
-			TruthyAnd(),
-			Identity()
-		);
+		applyMethods<
+			PushPop,
+			OpPop,
+			OpStop,
+			OpReturnRevert,
+			DoublePush,
+			DoubleSwap,
+			CommutativeSwap,
+			SwapComparison,
+			DupSwap,
+			IsZeroIsZeroJumpI,
+			IsZeroIsZeroRJumpI, // EOF specific
+			EqIsZeroJumpI,
+			EqIsZeroRJumpI, // EOF specific
+			DoubleJump,
+			DoubleRJump, // EOF specific
+			JumpToNext,
+			RJumpToNext, // EOF specific
+			UnreachableCode,
+			DeduplicateNextTagSize3,
+			DeduplicateNextTagSize2,
+			DeduplicateNextTagSize1,
+			TagConjunctions,
+			TruthyAnd,
+			Identity
+		>(state);
 	if (m_optimisedItems.size() < m_items.size() || (
 		m_optimisedItems.size() == m_items.size() && (
 			evmasm::bytesRequired(m_optimisedItems, 3, m_evmVersion, approx) < evmasm::bytesRequired(m_items, 3, m_evmVersion, approx) ||
